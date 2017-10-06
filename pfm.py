@@ -4,7 +4,7 @@
 Utility functions for reading and writing RGB and grayscale PFM files.
 """
 
-from __future__ import print_function
+from __future__ import print_function as __print
 
 import sys, os, re
 import numpy as np
@@ -65,7 +65,7 @@ def parse(pfmByteArray):
         dtype = "<f" if scale < 0.0 else ">f"
         scale = abs(scale)
         if VERBOSE:
-            print("(w=%d, h=%d, c=%d, scale=%.3f, byteorder='%s')..."%(width, height, numchannels, scale, dtype[0]))
+            print("(w=%d, h=%d, c=%d, scale=%.3f, byteorder='%s')"%(width, height, numchannels, scale, dtype[0]))
         f32 = np.frombuffer(pfmByteArray, dtype=dtype, count=width*height*numchannels, offset=len(header))
         f32 = f32.reshape((height, width) if numchannels == 1 else (height, width, 3))
         return f32, scale
@@ -95,7 +95,7 @@ def generate(pixelArray, scale=1.0, littleEndian=True):
         scale = scale
         f32bs = f32.byteswap()
     if VERBOSE:
-        print("(w=%d, h=%d, c=%d, scale=%.3f, byteorder='%s')..."%(width, height, numchannels, abs(scale), byteorder))
+        print("(w=%d, h=%d, c=%d, scale=%.3f, byteorder='%s')"%(width, height, numchannels, abs(scale), byteorder))
     pfmByteArray = bytearray("%s %d %d %.3f\n"%(typestr, width, height, scale), 'utf-8')
     pfmByteArray.extend(f32bs.flatten())
     return bytes(pfmByteArray)
