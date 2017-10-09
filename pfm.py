@@ -6,7 +6,7 @@ Utility functions for reading and writing RGB and grayscale PFM files.
 
 from __future__ import print_function as __print
 
-import sys, os, re
+import re
 import numpy as np
 
 ######################################################################################
@@ -15,9 +15,7 @@ import numpy as np
 #
 ######################################################################################
 
-VERBOSE = True
-
-def read(filename):
+def read(filename, verbose=False):
     """
     Reads in a PFM file by the given name and returns its contents in a new
     numpy ndarray with float32 elements. The absolute value of the 'scale
@@ -25,17 +23,17 @@ def read(filename):
     are supported, as well as both byte orders.
     """
     with open(filename, 'rb') as f:
-        if VERBOSE:
+        if verbose:
             print("Reading file %s "%(filename), end='')
         buf = f.read()
-        parsed = parse(buf)
+        parsed = parse(buf, verbose)
         if parsed is not None:
             pixels, scale = parsed
             return pixels, scale
         else:
             raise RuntimeError("File %s is not a valid PFM file."%(filename))
 
-def write(filename, pixelArray, scale=1.0, littleEndian=True):
+def write(filename, pixelArray, scale=1.0, littleEndian=True, verbose=False):
     """
     Writes the contents of the given float32 ndarray into a 1- or 3-channel
     PFM file by the given name. Both little-endian and big-endian files are
@@ -43,12 +41,12 @@ def write(filename, pixelArray, scale=1.0, littleEndian=True):
     either 1 or 3.
     """
     with open(filename, 'wb') as f:
-        if VERBOSE:
+        if verbose:
             print("Writing file %s "%(filename), end='')
-        pfmByteArray = generate(pixelArray, scale, littleEndian)
+        pfmByteArray = generate(pixelArray, scale, littleEndian, verbose)
         f.write(pfmByteArray)
 
-def parse(pfmByteArray):
+def parse(pfmByteArray, verbose=False):
     """
     Converts the given byte array, representing the contents of a PFM file, into
     a 1-channel or 3-channel numpy ndarray with float32 elements. Returns a tuple
@@ -64,13 +62,14 @@ def parse(pfmByteArray):
         numchannels = 3 if typestr == b"PF" else 1
         dtype = "<f" if scale < 0.0 else ">f"
         scale = abs(scale)
-        if VERBOSE:
+        if verbose:
             print("(w=%d, h=%d, c=%d, scale=%.3f, byteorder='%s')"%(width, height, numchannels, scale, dtype[0]))
-        f32 = np.frombuffer(pfmByteArray, dtype=dtype, count=width*height*numchannels, offset=len(header))
+        f32 = np.frombuffer(pfmByteArray, dtype=dtype, count=width * height * numchannels, offset=len(header))
         f32 = f32.reshape((height, width) if numchannels == 1 else (height, width, 3))
+        f32 = f32.astype(np.float32)
         return f32, scale
 
-def generate(pixelArray, scale=1.0, littleEndian=True):
+def generate(pixelArray, scale=1.0, littleEndian=True, verbose=False):
     """
     Converts the given float32 ndarray into an immutable byte array representing
     the contents of a PFM file. The byte array can be written to disk as-is. Both
@@ -94,7 +93,7 @@ def generate(pixelArray, scale=1.0, littleEndian=True):
         byteorder = ">"
         scale = scale
         f32bs = f32.byteswap()
-    if VERBOSE:
+    if verbose:
         print("(w=%d, h=%d, c=%d, scale=%.3f, byteorder='%s')"%(width, height, numchannels, abs(scale), byteorder))
     pfmByteArray = bytearray("%s %d %d %.3f\n"%(typestr, width, height, scale), 'utf-8')
     pfmByteArray.extend(f32bs.flatten())
