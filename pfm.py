@@ -1,5 +1,3 @@
-#!/usr/bin/python -B
-
 """
 Utility functions for reading and writing RGB and grayscale PFM files.
 """
