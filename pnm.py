@@ -19,8 +19,9 @@ def read(filespec, verbose=False):
     ndarray with 8/16-bit elements. Also returns the maximum representable value of a
     pixel (typically 255, 1023, 4095, or 65535).
     """
+    validExtensions = [".pnm", ".ppm", ".pgm", ".PNM", ".PPM", ".PGM"]
     __enforce(type(filespec) == str and len(filespec) >= 5, "filespec must be a string of length >= 5, was %r."%(filespec))
-    __enforce(filespec[-4:] in [".pnm", ".ppm", ".pgm"], "file extension must be .pnm, .ppm, or .pgm; was %s."%(filespec[-4:]))
+    __enforce(filespec[-4:] in validExtensions, "file extension must be .pnm, .ppm, or .pgm; was %s."%(filespec[-4:]))
     with open(filespec, "rb") as f:
         buf = f.read()
         regexPnmHeader = b"(^(P[56])\s+(\d+)\s+(\d+)\s+(\d+)\s)"
@@ -46,14 +47,16 @@ def write(filespec, image, maxval, verbose=False):
     given name. The dtype of image must be consistent with maxval, i.e., np.uint8 for
     maxval <= 255, and np.uint16 otherwise.
     """
+    colorExtensions = [".pnm", ".ppm", ".PNM", ".PPM"]
+    grayExtensions = [".pnm", ".pgm", ".PNM", ".PGM"]
     __enforce(type(filespec) == str and len(filespec) >= 5, "filespec must be a string of length >= 5, was %r."%(filespec))
     __enforce(type(image) == np.ndarray, "image must be a NumPy ndarray; was %r."%(type(image)))
     __enforce(image.dtype in [np.uint8, np.uint16], "image.dtype must be uint8 or uint16; was %s."%(image.dtype))
     __enforce(image.ndim in [2, 3], "image must have either 2 or 3 dimensions; had %d."%(image.ndim))
     __enforce(image.size >= 1, "image must have at least one pixel; had none.")
     __enforce(type(maxval) == int and 1 <= maxval <= 65535, "maxval must be an integer in [1, 65535]; was %r."%(maxval))
-    __enforce(filespec[-4:] in [".pnm", ".ppm"] or image.ndim == 2, "file extension must be .pnm or .ppm; was %s."%(filespec[-4:]))
-    __enforce(filespec[-4:] in [".pnm", ".pgm"] or image.ndim == 3, "file extension must be .pnm or .pgm; was %s."%(filespec[-4:]))
+    __enforce(filespec[-4:] in colorExtensions or image.ndim == 2, "file extension must be .pnm or .ppm; was %s."%(filespec[-4:]))
+    __enforce(filespec[-4:] in grayExtensions or image.ndim == 3, "file extension must be .pnm or .pgm; was %s."%(filespec[-4:]))
     __disallow(image.ndim == 3 and image.shape[2] != 3, "color images must have exactly 3 channels")
     __disallow(maxval > 255 and image.dtype == np.uint8, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
     __disallow(maxval <= 255 and image.dtype == np.uint16, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))

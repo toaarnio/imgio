@@ -42,13 +42,13 @@ def imread(filespec, verbose=False):
     basename, filetype = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 1, "filename `%s` must have at least 1 character + extension."%(filename))
     _enforce(len(filetype) > 3, "filename `%s` must have at least 1 character + extension."%(filename))
-    if filetype == ".pfm":
+    if filetype in [".pfm", ".PFM"]:
         frame, scale = _reraise(lambda: pfm.read(filespec, verbose))
         return frame, scale
-    elif filetype in [".pnm", ".pgm", ".ppm"]:
+    elif filetype in [".pnm", ".pgm", ".ppm", ".PNM", ".PGM", ".PPM"]:
         frame, maxval = _reraise(lambda: pnm.read(filespec, verbose))
         return frame, maxval
-    elif filetype in [".png", ".jpg", ".jpeg"]:
+    elif filetype in [".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"]:
         _print(verbose, "Reading file %s "%(filespec), end='')
         frame = _reraise(lambda: _imread.imread(filespec))
         maxval = 255 if frame.dtype == np.uint8 else 65535
@@ -272,6 +272,25 @@ class _TestImgIo(unittest.TestCase):
             self.assertEqual(result.shape, shape)
             self.assertEqual(result.shape, shape)
             os.remove(tempfile)
+
+    def test_allcaps(self):
+        print("Testing Windows-style all-caps filenames...")
+        maxval = 255
+        dtype = np.uint8
+        basename = "imgio.test"
+        for ext in [".pnm", ".pfm", ".ppm", ".jpg", ".jpeg"]:
+            tempfile = "imgio.test%s"%(ext)
+            capsfile = "imgio.test%s"%(ext.upper())
+            shape = (7, 11, 3)
+            pixels = np.ones(shape)
+            pixels = (pixels * maxval).astype(dtype)
+            imwrite(tempfile, pixels, maxval, verbose=True)
+            os.rename(tempfile, capsfile)
+            result, resmaxval = imread(capsfile, verbose=True)
+            self.assertEqual(resmaxval, maxval)
+            self.assertEqual(result.shape, shape)
+            self.assertEqual(result.tolist(), pixels.tolist())
+            os.remove(capsfile)
 
     def test_verbose(self):
         print("Testing verbose mode...")
