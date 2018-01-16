@@ -29,8 +29,8 @@ import pfm                        # local import: pfm.py
 
 __all__ = ["imread", "imwrite"]  # the exported symbols
 
-def imread(filespec, verbose=False):
-    # type: (str, bool) -> Tuple[np.ndarray, Union[int, float]]
+def imread(filespec, width=None, height=None, bpp=None, verbose=False):
+    # type: (str, int, int, int, bool) -> Tuple[np.ndarray, Union[int, float]]
     """
     Reads the given image file from disk and returns it as a NumPy array.
     Grayscale images are returned as 2D arrays of shape H x W, color images
@@ -42,7 +42,10 @@ def imread(filespec, verbose=False):
     basename, filetype = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 1, "filename `%s` must have at least 1 character + extension."%(filename))
     _enforce(len(filetype) > 3, "filename `%s` must have at least 1 character + extension."%(filename))
-    if filetype in [".pfm", ".PFM"]:
+    if filetype in [".raw", ".bin", ".RAW", ".BIN"]:
+        frame, maxval = _reraise(lambda: _readRaw(filespec, width, height, bpp, verbose=verbose))
+        return frame, maxval
+    elif filetype in [".pfm", ".PFM"]:
         frame, scale = _reraise(lambda: pfm.read(filespec, verbose))
         return frame, scale
     elif filetype in [".pnm", ".pgm", ".ppm", ".PNM", ".PGM", ".PPM"]:
@@ -128,6 +131,19 @@ def _reraise(func):
 def _print(verbose, *args, **kwargs):
     if verbose:
         print(*args, **kwargs)
+
+def _readRaw(filespec, width, height, bpp, verbose=False):
+    # Warning: hardcoded endianness for 16-bit data!
+    with open(filespec, "rb") as f:
+        buf = f.read()
+        shape = (height, width)
+        maxval = 2 ** bpp - 1
+        _print(verbose, "Reading raw Bayer file %s "%(filespec), end='')
+        _print(verbose, "(w=%d, h=%d, maxval=%d)"%(width, height, maxval))
+        dtype = "<u2" if bpp > 8 else np.uint8
+        pixels = np.frombuffer(buf, dtype, count=width * height, offset=0)
+        pixels = pixels.reshape(shape).astype(np.uint8 if bpp <= 8 else np.uint16)
+        return pixels, maxval
 
 ######################################################################################
 #
