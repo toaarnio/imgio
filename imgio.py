@@ -96,7 +96,7 @@ def imwrite(filespec, image, maxval=255, verbose=False):
     elif filetype in [".png", ".jpg", ".jpeg"]:
         _disallow(filetype in [".jpg", ".jpeg"] and maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
         _disallow(filetype == ".png" and maxval not in [255, 65535], "maxval must be 255 or 65535 for a PNG; was %d."%(maxval))
-        _disallow(image.ndim == 3 and maxval == 65535, "Writing 16-bit color PNGs is not supported yet.")
+        _disallow(filetype == ".png" and image.ndim == 3 and maxval == 65535, "Writing 16-bit color PNGs is not supported yet.")
         _print(verbose, "Writing file %s "%(filespec), end='')
         _reraise(lambda: _imread.imsave(filespec, image))
         h, w = image.shape[:2]
