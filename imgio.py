@@ -43,6 +43,7 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     _enforce(len(basename) > 1, "filename `%s` must have at least 1 character + extension."%(filename))
     _enforce(len(filetype) > 3, "filename `%s` must have at least 1 character + extension."%(filename))
     if filetype in [".raw", ".bin", ".RAW", ".BIN"]:
+        _enforce(isinstance(bpp, int) and 1 <= bpp <= 16, "bpp must be an integer in [1, 16]; was %s"%(repr(bpp)))
         frame, maxval = _reraise(lambda: _readRaw(filespec, width, height, bpp, verbose=verbose))
         return frame, maxval
     elif filetype in [".pfm", ".PFM"]:
