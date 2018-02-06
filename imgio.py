@@ -14,7 +14,6 @@ import os                         # standard library
 import sys                        # standard library
 import unittest                   # standard library
 
-from typing import Tuple, Union   # pip install typing
 import numpy as np                # pip install numpy
 import imread as _imread          # pip install imread
 
@@ -36,8 +35,7 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     Grayscale images are returned as 2D arrays of shape H x W, color images
     as 3D arrays of shape H x W x 3.
     """
-    global _errorMessagePrefix
-    _errorMessagePrefix = "Failed to read %s"%(repr(filespec))
+    ImageIOError.errorMessagePrefix = "Failed to read %s"%(repr(filespec))
     filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
     basename, filetype = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 1, "filename `%s` must have at least 1 character + extension."%(filename))
@@ -63,7 +61,7 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
         frame = frame.squeeze(axis=2) if mustSqueeze else frame
         return frame, maxval
     else:
-        raise ImageIOError("%s: Unrecognized file type `%s`."%(_errorMessagePrefix, filetype))
+        raise ImageIOError("Unrecognized file type `%s`."%(filetype))
 
 def imwrite(filespec, image, maxval=255, verbose=False):
     # type: (str, np.ndarray, Union[int, float], bool) -> None
@@ -72,14 +70,13 @@ def imwrite(filespec, image, maxval=255, verbose=False):
     provided as NumPy arrays with shape H x W, color images with shape H x W x 3.
     Metadata, alpha channels, etc. are not supported.
     """
-    global _errorMessagePrefix
-    _errorMessagePrefix = "Failed to write %s"%(repr(filespec))
-    _enforce(type(filespec) == str, "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
-    _enforce(type(image) == np.ndarray, "image must be a NumPy ndarray; was %s."%(type(image)))
+    ImageIOError.errorMessagePrefix = "Failed to write %s"%(repr(filespec))
+    _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
+    _enforce(isinstance(image, np.ndarray), "image must be a NumPy ndarray; was %s."%(type(image)))
     _enforce(image.dtype in [np.uint8, np.uint16, np.float32], "image.dtype must be uint8, uint16, or float32; was %s"%(image.dtype))
     _enforce(image.size >= 1, "image must have at least one pixel; had none.")
-    _enforce(type(maxval) in [float, int], "maxval must be an integer or a float; was %s."%(repr(maxval)))
-    _enforce(type(maxval) == int or image.dtype == np.float32, "maxval must be an integer in [1, 65535]; was %s."%(repr(maxval)))
+    _enforce(isinstance(maxval, (float, int)), "maxval must be an integer or a float; was %s."%(repr(maxval)))
+    _enforce(isinstance(maxval, int) or image.dtype == np.float32, "maxval must be an integer in [1, 65535]; was %s."%(repr(maxval)))
     _enforce(1 <= maxval <= 65535 or image.dtype == np.float32, "maxval must be an integer in [1, 65535]; was %s."%(repr(maxval)))
     _disallow(image.ndim not in [2, 3], "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
     _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
@@ -104,10 +101,12 @@ def imwrite(filespec, image, maxval=255, verbose=False):
         c = image.shape[2] if image.ndim > 2 else 1
         _print(verbose, "(w=%d, h=%d, c=%d, maxval=%d)"%(w, h, c, maxval))
     else:
-        raise ImageIOError("%s: Unrecognized file type `%s`."%(_errorMessagePrefix, filetype))
+        raise ImageIOError("Unrecognized file type `%s`."%(filetype))
 
 class ImageIOError(RuntimeError):
-    pass
+    errorMessagePrefix = ""
+    def __init__(self, msg):
+        RuntimeError.__init__(self, "%s: %s"%(self.errorMessagePrefix, msg))
 
 ######################################################################################
 #
@@ -115,19 +114,19 @@ class ImageIOError(RuntimeError):
 #
 ######################################################################################
 
-def _enforce(expression, errorMessageIfFalse, exceptionType=ImageIOError):
+def _enforce(expression, errorMessageIfFalse):
     if not expression:
-        raise exceptionType("%s: %s"%(_errorMessagePrefix, errorMessageIfFalse))
+        raise ImageIOError("%s"%(errorMessageIfFalse))
 
-def _disallow(expression, errorMessageIfTrue, exceptionType=ImageIOError):
+def _disallow(expression, errorMessageIfTrue):
     if expression:
-        raise exceptionType("%s: %s"%(_errorMessagePrefix, errorMessageIfTrue))
+        raise ImageIOError("%s"%(errorMessageIfTrue))
 
 def _reraise(func):
     try:
         return func()
     except Exception:
-        raise ImageIOError("%s: %s"%(_errorMessagePrefix, repr(sys.exc_info()[1])))
+        raise ImageIOError("%s"%(repr(sys.exc_info()[1])))
 
 def _print(verbose, *args, **kwargs):
     if verbose:
