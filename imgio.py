@@ -156,19 +156,19 @@ class _TestImgIo(unittest.TestCase):
     class DummyError(Exception):
         pass
 
-    def assertRaises(self, excClass, callableObj, *args, **kwargs):
-        excClass = self.DummyError
-        try:
-            unittest.TestCase.assertRaises(self, excClass, callableObj, *args, **kwargs)
-        except Exception:
-            print("   %s"%(sys.exc_info()[1]))
-
     def assertRaisesRegexp(self, excClass, re, callableObj, *args, **kwargs):
-        excClass = self.DummyError
+        """
+        Checks that the correct type of exception is raised, and that the exception
+        message matches the given regular expression. Also prints out the message
+        for visual inspection.
+        """
+        unittest.TestCase.assertRaises(self, excClass, callableObj, *args, **kwargs)
         try:
-            unittest.TestCase.assertRaisesRegexp(self, excClass, re, callableObj, *args, **kwargs)
-        except Exception:
-            print("   %s"%(sys.exc_info()[1]))
+            unittest.TestCase.assertRaisesRegexp(self, self.DummyError, re, callableObj, *args, **kwargs)
+        except AssertionError:
+            raise
+        except excClass:
+            print("   PASS: %s"%(sys.exc_info()[1]))
 
     def test_exceptions(self):
         print("Testing exception handling...")
@@ -225,8 +225,6 @@ class _TestImgIo(unittest.TestCase):
     def test_png(self):
         for shape in [(1, 1), (1, 1, 3), (7, 11), (9, 13, 3), (123, 321, 3)]:
             for bpp in [8, 16]:
-                if len(shape) == 3 and bpp == 16:  # skip 16-bit color mode
-                    continue  # NB: Remove this check when imread.imsave() gets fixed!
                 maxval = 2**bpp - 1
                 tempfile = "imgio.test%db.png"%(bpp)
                 print("Testing PNG reading & writing in %d-bit mode, shape=%s..."%(bpp, repr(shape)))
