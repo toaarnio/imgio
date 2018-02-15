@@ -94,7 +94,6 @@ def imwrite(filespec, image, maxval=255, verbose=False):
     elif filetype in [".png", ".jpg", ".jpeg"]:
         _disallow(filetype in [".jpg", ".jpeg"] and maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
         _disallow(filetype == ".png" and maxval not in [255, 65535], "maxval must be 255 or 65535 for a PNG; was %d."%(maxval))
-        _disallow(filetype == ".png" and image.ndim == 3 and maxval == 65535, "Writing 16-bit color PNGs is not supported yet.")
         _print(verbose, "Writing file %s "%(filespec), end='')
         _reraise(lambda: _imread.imsave(filespec, image))
         h, w = image.shape[:2]
@@ -215,7 +214,6 @@ class _TestImgIo(unittest.TestCase):
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(np.float16))
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(np.float64))
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype('>f4'))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.png", pixels16b, 65535)
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.pfm", pixels, -1.0)
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.pfm", pixels, "255")
         os.remove("invalidformat.pfm")
