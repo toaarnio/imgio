@@ -49,6 +49,8 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     _enforce(len(filetype) > 3, "filename `%s` must have at least 1 character + extension."%(filename))
     if filetype in [".raw", ".bin", ".RAW", ".BIN"]:
         _enforce(isinstance(bpp, int) and 1 <= bpp <= 16, "bpp must be an integer in [1, 16]; was %s"%(repr(bpp)))
+        _enforce(isinstance(width, int) and width >= 1, "width must be an integer >= 1; was %s"%(repr(width)))
+        _enforce(isinstance(height, int) and height >= 1, "height must be an integer >= 1; was %s"%(repr(height)))
         frame, maxval = _reraise(lambda: _read_raw(filespec, width, height, bpp, verbose=verbose))
         return frame, maxval
     elif filetype in [".pfm", ".PFM"]:
@@ -95,9 +97,9 @@ def imwrite(filespec, image, maxval=255, verbose=False):
     _enforce(len(filetype) > 3, "filename `%s` must have at least 1 character + extension."%(filename))
     if filetype == ".pfm":
         _enforce(maxval >= 0.0, "maxval (scale) must be non-negative; was %s."%(repr(maxval)))
-        _reraise(lambda: pfm.write(filespec, image, scale=maxval, verbose=verbose))
+        _reraise(lambda: pfm.write(filespec, image, maxval, verbose))
     elif filetype in [".pnm", ".pgm", ".ppm"]:
-        _reraise(lambda: pnm.write(filespec, image, maxval=maxval, verbose=verbose))
+        _reraise(lambda: pnm.write(filespec, image, maxval, verbose))
     elif filetype in [".png", ".jpg", ".jpeg"]:
         _disallow(filetype in [".jpg", ".jpeg"] and maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
         _disallow(filetype == ".png" and maxval not in [255, 65535], "maxval must be 255 or 65535 for a PNG; was %d."%(maxval))
