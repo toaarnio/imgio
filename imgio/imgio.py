@@ -72,7 +72,7 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     else:
         raise ImageIOError("Unrecognized file type `%s`."%(filetype))
 
-def imwrite(filespec, image, maxval=255, verbose=False):
+def imwrite(filespec, image, maxval=255, pack=False, verbose=False):
     # type: (str, np.ndarray, Union[int, float], bool) -> None
     """
     Writes the given image to the given file. Grayscale images are expected
@@ -95,7 +95,9 @@ def imwrite(filespec, image, maxval=255, verbose=False):
     basename, filetype = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
     _enforce(len(filetype) > 3, "filename `%s` must have at least 1 character + extension."%(filename))
-    if filetype == ".pfm":
+    if filetype in [".raw", ".bin", ".RAW", ".BIN"]:
+        _reraise(lambda: _write_raw(filespec, image, maxval, pack, verbose=verbose))
+    elif filetype == ".pfm":
         _enforce(maxval >= 0.0, "maxval (scale) must be non-negative; was %s."%(repr(maxval)))
         _reraise(lambda: pfm.write(filespec, image, maxval, verbose))
     elif filetype in [".pnm", ".pgm", ".ppm"]:
@@ -155,16 +157,111 @@ def _print(verbose, *args, **kwargs):
 
 def _read_raw(filespec, width, height, bpp, verbose=False):
     # Warning: hardcoded endianness (x86)
-    with open(filespec, "rb") as f:
-        buf = f.read()
+    with open(filespec, "rb") as infile:
+        buf = infile.read()
         shape = (height, width)
         maxval = 2 ** bpp - 1
+        wordsize = 2 if bpp > 8 else 1
+        packed = len(buf) < (width * height * wordsize)
         _print(verbose, "Reading raw Bayer file %s "%(filespec), end='')
-        _print(verbose, "(w=%d, h=%d, maxval=%d)"%(width, height, maxval))
-        dtype = "<u2" if bpp > 8 else np.uint8
-        pixels = np.frombuffer(buf, dtype, count=width * height, offset=0)
-        pixels = pixels.reshape(shape).astype(np.uint8 if bpp <= 8 else np.uint16)
+        _print(verbose, "(w=%d, h=%d, maxval=%d, packed=%r)"%(width, height, maxval, packed))
+        if not packed:
+            dtype = "<u2" if bpp > 8 else np.uint8
+            pixels = np.frombuffer(buf, dtype, count=width * height, offset=0)
+            pixels = pixels.reshape(shape).astype(np.uint8 if bpp <= 8 else np.uint16)
+        else:
+            # TODO: unpack!
+            raise ImageIOError("Packed RAW reading not implemented yet!")
         return pixels, maxval
+
+def _write_raw(filespec, image, maxval, pack=False, verbose=False):
+    # Warning: hardcoded endianness (x86)
+    bpp = int(np.log2(maxval + 1))
+    if pack and 8 < bpp < 16:
+        packed = _pack_raw(image, bpp, verbose)
+        image = packed
+    with open(filespec, "wb") as outfile:
+        outfile.write(image)
+
+"""
+  12-bit pixel packing:
+
+  .abc .123 .def .456  ==> 4 x 16 bits = 64 bits
+  abc1 23de f456       ==> 3 x 16 bits = 48 bits = 4 x 12 bits
+
+  original:  .abc  .123  .def  .456
+  expected:  abc1  23de  f456
+
+  original:  .abc  .123  .def  .456
+  lrot1:     abc.  123.  def.  456.
+  lrot2:     bc.a  23.1  ef.d  56.4
+  lrot3:     c.ab  3.12  f.de  6.45
+
+  lrot1:     abc.  123.  def.  456.  => abc
+  lrot2lo:   ...a  ...1  ...d  ...4  => abc1
+  lrot2hi:   bc..  23..  ef..  56..  => abc1 23
+  lrot3lo:   ..ab  ..12  ..de  ..45  => abc1 23de
+  lrot3hi:   c...  3...  f...  6...  => abc1 23de f
+  original:  .abc  .123  .def  .456  => abc1 23de f456
+"""
+
+def _pack_raw(image, bpp, verbose=False):
+    h, w = image.shape
+    shift = 16 - bpp
+    stride = int(np.ceil((bpp * w) / 8.0))
+    fmt = "uint:%d"%(bpp)
+    _print(verbose, "writeRaw: bpp=%d, width=%d (pixels), stride=%d (bytes), format=%s"%(bpp, w, stride, fmt))
+    #packed = np.zeros((h, stride), dtype=np.uint8)
+    #packed = packed.astype(np.uint16)  # easier to pack into 16-bit words
+    combo = image
+    if shift > 0:
+        np.set_printoptions(formatter={'int': lambda v: "0x%04X"%(v)})
+        mask = 2**bpp - 1
+        print("shift=%d, mask=%04x"%(shift, mask))
+        lsh0 = image & mask                                # .abc  .123  .def  .456
+        lsh1 = (image << shift) & (mask << shift)          # abc.  123.  def.  456.
+        lsh2 = (image << shift * 2) & (mask << shift * 2)  # bc..  23..  ef..  56..
+        lsh3 = (image << shift * 3) & (mask << shift * 3)  # c...  3...  f...  6...
+        rsh1 = (image >> shift) & (mask >> shift)          # ..ab  ..12  ..de  ..45
+        rsh2 = (image >> shift * 2) & (mask >> shift * 2)  # ...a  ...1  ...d  ...4
+        print("========== shifted:")
+        print(lsh0)
+        print(lsh1)
+        print(lsh2)
+        print(lsh3)
+        print(rsh1)
+        print(rsh2)
+        lsh0 = lsh0[:, 3::4]
+        lsh1 = lsh1[:, 0::4]
+        lsh2 = lsh2[:, 1::4]
+        lsh3 = lsh3[:, 2::4]
+        rsh1 = rsh1[:, 2::4]
+        rsh2 = rsh2[:, 1::4]
+        print("========== picked:")
+        print(lsh0)
+        print(lsh1)
+        print(lsh2)
+        print(lsh3)
+        print(rsh1)
+        print(rsh2)
+        print("========== combos:")
+        combo1 = lsh1 + rsh2   # abc1 .... ....
+        combo2 = lsh2 + rsh1   # .... 23de ....
+        combo3 = lsh3 + lsh0   # .... .... f456
+        print(combo1)
+        print(combo2)
+        print(combo3)
+        print("========== result:")
+        combo = np.zeros(shape=(h, int(w*3/4))).astype(np.uint16)
+        combo[:, 0::3] = combo1
+        combo[:, 1::3] = combo2
+        combo[:, 2::3] = combo3
+        print(combo)
+        print(combo.shape)
+        #for y in range(h):
+        #    row = image[y].tolist()
+        #    print("row %d:"%(y), row, image[y].tobytes().hex())
+    return combo
 
 ######################################################################################
 #
@@ -309,6 +406,26 @@ class _TestImgIo(unittest.TestCase):
             self.assertEqual(result.shape, shape)
             self.assertEqual(result.shape, shape)
             os.remove(tempfile)
+
+    def test_raw(self):
+        for packed in [True]:
+            for shape in [(1, 4)]:
+                for bpp in [12]: #[1, 5, 7, 8, 10, 12, 13, 16]:
+                    maxval = 2**bpp - 1
+                    tempfile = "imgio.test%db.raw"%(bpp)
+                    packstr = "packed" if packed else "padded"
+                    print("Testing RAW reading & writing in %s %d-bit mode, shape=%s..."%(packstr, bpp, repr(shape)))
+                    dtype = np.uint8 if bpp <= 8 else np.uint16
+                    pixels = np.random.random(shape)
+                    pixels = (pixels * maxval).astype(dtype)
+                    #pixels[:] = maxval - 1
+                    imwrite(tempfile, pixels, maxval, packed, verbose=True)
+                    result, resmaxval = imread(tempfile, shape[1], shape[0], bpp, verbose=True)
+                    self.assertEqual(resmaxval, maxval)
+                    self.assertEqual(result.dtype, dtype)
+                    self.assertEqual(result.shape, shape)
+                    self.assertEqual(result.tolist(), pixels.tolist())
+                    #os.remove(tempfile)
 
     def test_allcaps(self):
         print("Testing Windows-style all-caps filenames...")
