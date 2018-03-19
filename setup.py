@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(name='imgio',
-      version='0.3.0',
+      version='0.3.1',
       description='Easy image reading & writing. Supports PGM/PPM/PFM/PNG/JPG.',
       url='http://github.com/toaarnio/imgio',
       author='Tomi Aarnio',

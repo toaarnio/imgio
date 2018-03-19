@@ -43,6 +43,7 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     as 3D arrays of shape H x W x 3.
     """
     ImageIOError.error_message_prefix = "Failed to read %s: "%(repr(filespec))
+    _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
     filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
     basename, filetype = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 1, "filename `%s` must have at least 1 character + extension."%(filename))
