@@ -42,7 +42,7 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     Grayscale images are returned as 2D arrays of shape H x W, color images
     as 3D arrays of shape H x W x 3.
     """
-    ImageIOError.error_message_prefix = "Failed to read %s"%(repr(filespec))
+    ImageIOError.error_message_prefix = "Failed to read %s: "%(repr(filespec))
     filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
     basename, filetype = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 1, "filename `%s` must have at least 1 character + extension."%(filename))
@@ -79,7 +79,7 @@ def imwrite(filespec, image, maxval=255, pack=False, verbose=False):
     to be provided as NumPy arrays with shape H x W, color images with shape
     H x W x 3. Metadata, alpha channels, etc. are not supported.
     """
-    ImageIOError.error_message_prefix = "Failed to write %s"%(repr(filespec))
+    ImageIOError.error_message_prefix = "Failed to write %s: "%(repr(filespec))
     _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
     _enforce(isinstance(image, np.ndarray), "image must be a NumPy ndarray; was %s."%(type(image)))
     _enforce(image.dtype in [np.uint8, np.uint16, np.float32], "image.dtype must be uint8, uint16, or float32; was %s"%(image.dtype))
@@ -127,7 +127,7 @@ class ImageIOError(RuntimeError):
     """
     error_message_prefix = ""
     def __init__(self, msg):
-        RuntimeError.__init__(self, "%s: %s"%(self.error_message_prefix, msg))
+        RuntimeError.__init__(self, "%s%s"%(self.error_message_prefix, msg))
 
 ######################################################################################
 #
@@ -181,6 +181,7 @@ def _write_raw(filespec, image, maxval, pack=False, verbose=False):
         packed = _pack_raw(image, bpp, verbose)
         image = packed
     with open(filespec, "wb") as outfile:
+        image = image.copy(order="C")
         outfile.write(image)
 
 """
