@@ -42,12 +42,13 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     Grayscale images are returned as 2D arrays of shape H x W, color images
     as 3D arrays of shape H x W x 3.
     """
-    ImageIOError.error_message_prefix = "Failed to read %s"%(repr(filespec))
+    ImageIOError.error_message_prefix = "Failed to read %s: "%(repr(filespec))
     filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
     basename, filetype = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 1, "filename `%s` must have at least 1 character + extension."%(filename))
     _enforce(len(filetype) > 3, "filename `%s` must have at least 1 character + extension."%(filename))
-    if filetype in [".raw", ".bin", ".RAW", ".BIN"]:
+    _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)))
+    if filetype in [".raw", ".RAW"]:
         _enforce(isinstance(bpp, int) and 1 <= bpp <= 16, "bpp must be an integer in [1, 16]; was %s"%(repr(bpp)))
         _enforce(isinstance(width, int) and width >= 1, "width must be an integer >= 1; was %s"%(repr(width)))
         _enforce(isinstance(height, int) and height >= 1, "height must be an integer >= 1; was %s"%(repr(height)))
@@ -70,16 +71,16 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
         frame = frame.squeeze(axis=2) if must_squeeze else frame
         return frame, maxval
     else:
-        raise ImageIOError("Unrecognized file type `%s`."%(filetype))
+        raise ImageIOError("unrecognized file type `%s`."%(filetype))
 
-def imwrite(filespec, image, maxval=255, verbose=False):
-    # type: (str, np.ndarray, Union[int, float], bool) -> None
+def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
+    # type: (str, np.ndarray, Union[int, float], bool, bool) -> None
     """
     Writes the given image to the given file. Grayscale images are expected
     to be provided as NumPy arrays with shape H x W, color images with shape
     H x W x 3. Metadata, alpha channels, etc. are not supported.
     """
-    ImageIOError.error_message_prefix = "Failed to write %s"%(repr(filespec))
+    ImageIOError.error_message_prefix = "Failed to write %s: "%(repr(filespec))
     _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
     _enforce(isinstance(image, np.ndarray), "image must be a NumPy ndarray; was %s."%(type(image)))
     _enforce(image.dtype in [np.uint8, np.uint16, np.float32], "image.dtype must be uint8, uint16, or float32; was %s"%(image.dtype))
@@ -87,6 +88,7 @@ def imwrite(filespec, image, maxval=255, verbose=False):
     _enforce(isinstance(maxval, (float, int)), "maxval must be an integer or a float; was %s."%(repr(maxval)))
     _enforce(isinstance(maxval, int) or image.dtype == np.float32, "maxval must be an integer in [1, 65535]; was %s."%(repr(maxval)))
     _enforce(1 <= maxval <= 65535 or image.dtype == np.float32, "maxval must be an integer in [1, 65535]; was %s."%(repr(maxval)))
+    _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)))
     _disallow(image.ndim not in [2, 3], "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
     _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
     _disallow(maxval > 255 and image.dtype == np.uint8, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
@@ -95,7 +97,11 @@ def imwrite(filespec, image, maxval=255, verbose=False):
     basename, filetype = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
     _enforce(len(filetype) > 3, "filename `%s` must have at least 1 character + extension."%(filename))
-    if filetype == ".pfm":
+    if filetype in [".raw", ".RAW"]:
+        _enforce(packed is False, "packed Bayer RAW images are not yet supported.")
+        _enforce(image.ndim == 2, "image.shape must be (m, n) for a Bayer RAW; was %s."%(str(image.shape)))
+        _reraise(lambda: _write_raw(filespec, image, maxval, packed, verbose))
+    elif filetype == ".pfm":
         _enforce(maxval >= 0.0, "maxval (scale) must be non-negative; was %s."%(repr(maxval)))
         _reraise(lambda: pfm.write(filespec, image, maxval, verbose))
     elif filetype in [".pnm", ".pgm", ".ppm"]:
@@ -109,7 +115,7 @@ def imwrite(filespec, image, maxval=255, verbose=False):
         c = image.shape[2] if image.ndim > 2 else 1
         _print(verbose, "(w=%d, h=%d, c=%d, maxval=%d)"%(w, h, c, maxval))
     else:
-        raise ImageIOError("Unrecognized file type `%s`."%(filetype))
+        raise ImageIOError("unrecognized file type `%s`."%(filetype))
 
 def selftest():
     """
@@ -125,7 +131,7 @@ class ImageIOError(RuntimeError):
     """
     error_message_prefix = ""
     def __init__(self, msg):
-        RuntimeError.__init__(self, "%s: %s"%(self.error_message_prefix, msg))
+        RuntimeError.__init__(self, "%s%s"%(self.error_message_prefix, msg))
 
 ######################################################################################
 #
@@ -155,16 +161,29 @@ def _print(verbose, *args, **kwargs):
 
 def _read_raw(filespec, width, height, bpp, verbose=False):
     # Warning: hardcoded endianness (x86)
-    with open(filespec, "rb") as f:
-        buf = f.read()
+    with open(filespec, "rb") as infile:
+        buf = infile.read()
         shape = (height, width)
         maxval = 2 ** bpp - 1
+        wordsize = 2 if bpp > 8 else 1
+        packed = len(buf) < (width * height * wordsize)
         _print(verbose, "Reading raw Bayer file %s "%(filespec), end='')
-        _print(verbose, "(w=%d, h=%d, maxval=%d)"%(width, height, maxval))
-        dtype = "<u2" if bpp > 8 else np.uint8
-        pixels = np.frombuffer(buf, dtype, count=width * height, offset=0)
-        pixels = pixels.reshape(shape).astype(np.uint8 if bpp <= 8 else np.uint16)
+        _print(verbose, "(w=%d, h=%d, maxval=%d, packed=%r)"%(width, height, maxval, packed))
+        if not packed:
+            dtype = "<u2" if bpp > 8 else np.uint8
+            pixels = np.frombuffer(buf, dtype, count=width * height, offset=0)
+            pixels = pixels.reshape(shape).astype(np.uint8 if bpp <= 8 else np.uint16)
+        else:
+            # TODO: unpack!
+            raise ImageIOError("Packed RAW reading not implemented yet!")
         return pixels, maxval
+
+def _write_raw(filespec, image, maxval, pack=False, verbose=False):
+    # Warning: hardcoded endianness (x86)
+    bpp = int(np.log2(maxval + 1))
+    with open(filespec, "wb") as outfile:
+        image = image.copy(order='C')  # ensure x86 byte order
+        outfile.write(image)
 
 ######################################################################################
 #
@@ -174,25 +193,29 @@ def _read_raw(filespec, width, height, bpp, verbose=False):
 
 class _TestImgIo(unittest.TestCase):
 
-    class DummyError(Exception):
-        pass
-
-    def assertRaisesRegexp(self, exc_class, regex, callable_obj, *args, **kwargs):  # pylint: disable=invalid-name
+    def assertRaisesRegexp(self, exc_class, regex, func, *args, **kwargs):  # pylint: disable=invalid-name
         """
         Checks that the correct type of exception is raised, and that the exception
         message matches the given regular expression. Also prints out the message
         for visual inspection.
         """
-        unittest.TestCase.assertRaises(self, exc_class, callable_obj, *args, **kwargs)
-        try:
-            if sys.version_info[0] >= 3:  # python3
-                unittest.TestCase.assertRaisesRegex(self, self.DummyError, regex, callable_obj, *args, **kwargs)
-            else:  # python2
-                unittest.TestCase.assertRaisesRegexp(self, self.DummyError, regex, callable_obj, *args, **kwargs)
-        except AssertionError:
+        try:  # check the type of exception first
+            unittest.TestCase.assertRaises(self, exc_class, func, *args, **kwargs)
+        except Exception as e:
+            raised_type = sys.exc_info()[0]
+            errstr = "Expected %s with a message matching '%s', got %s."%(exc_class.__name__, regex, raised_type.__name__)
+            print("   FAIL: %s"%(errstr))
+            raise AssertionError(errstr)
+        try:  # then check the exception message
+            assertRaisesRegex = getattr(unittest.TestCase, "assertRaisesRegex", unittest.TestCase.assertRaisesRegexp)
+            assertRaisesRegex(self, exc_class, regex, func, *args, **kwargs)  # python 2 vs. 3 compatibility hack
+            try:  # print the exception message also when everything is OK
+                func(*args, **kwargs)
+            except exc_class:
+                print("   PASS: %s"%(sys.exc_info()[1]))
+        except AssertionError as e:
+            print("   FAIL: %s"%(e))
             raise
-        except exc_class:
-            print("   PASS: %s"%(sys.exc_info()[1]))
 
     def test_exceptions(self):
         print("Testing exception handling...")
@@ -200,6 +223,7 @@ class _TestImgIo(unittest.TestCase):
         pixels = np.random.random(shape).astype(np.float32)
         pixels8b = (pixels * 255).astype(np.uint8)
         pixels16b = (pixels * 65535).astype(np.uint16)
+        imwrite("validimage.ppm", pixels8b, 255)
         imwrite("imgio.test.ppm", pixels8b, 255)
         imwrite("imgio.test.png", pixels8b, 255)
         imwrite("imgio.test.jpg", pixels8b, 255)
@@ -215,6 +239,8 @@ class _TestImgIo(unittest.TestCase):
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidformat.jpg")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidformat.ppm")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidtype.bmp")
+        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidtype.bmp")
+        self.assertRaisesRegexp(ImageIOError, "^Failed to read.*verbose", imread, "validimage.ppm", verbose="foo")
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invalidtype.bmp", pixels8b, 255)
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invaliddepth.ppm", pixels16b, 255)
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invaliddepth.png", pixels16b, 255)
@@ -241,9 +267,13 @@ class _TestImgIo(unittest.TestCase):
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype('>f4'))
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.pfm", pixels, -1.0)
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.pfm", pixels, "255")
+        self.assertRaisesRegexp(ImageIOError, "^Failed to write.*shape", imwrite, "imgio.test.raw", pixels8b, 255)
+        self.assertRaisesRegexp(ImageIOError, "^Failed to write.*supported", imwrite, "imgio.test.raw", pixels8b, 255, packed=True)
+        self.assertRaisesRegexp(ImageIOError, "^Failed to write.*verbose", imwrite, "imgio.test.ppm", pixels8b, 255, verbose=0)
         os.remove("invalidformat.pfm")
         os.remove("invalidformat.jpg")
         os.remove("invalidformat.ppm")
+        os.remove("validimage.ppm")
 
     def test_png(self):
         for shape in [(1, 1), (1, 1, 3), (7, 11), (9, 13, 3), (123, 321, 3)]:
@@ -309,6 +339,25 @@ class _TestImgIo(unittest.TestCase):
             self.assertEqual(result.shape, shape)
             self.assertEqual(result.shape, shape)
             os.remove(tempfile)
+
+    def test_raw(self):
+        for packed in [False]:
+            for shape in [(1, 1), (7, 11)]:
+                for bpp in [1, 5, 7, 8, 10, 12, 13, 16]:
+                    maxval = 2**bpp - 1
+                    tempfile = "imgio.test%db.raw"%(bpp)
+                    dtype = np.uint8 if bpp <= 8 else np.uint16
+                    packstr = "packed" if packed else "padded to %d bits"%(np.dtype(dtype).itemsize * 8)
+                    print("Testing RAW reading & writing in %d-bit mode (%s), shape=%s..."%(bpp, packstr, repr(shape)))
+                    pixels = np.random.random(shape)
+                    pixels = (pixels * maxval).astype(dtype)
+                    imwrite(tempfile, pixels, maxval, packed=packed)
+                    result, resmaxval = imread(tempfile, shape[1], shape[0], bpp)
+                    self.assertEqual(resmaxval, maxval)
+                    self.assertEqual(result.dtype, dtype)
+                    self.assertEqual(result.shape, shape)
+                    self.assertEqual(result.tolist(), pixels.tolist())
+                    os.remove(tempfile)
 
     def test_allcaps(self):
         print("Testing Windows-style all-caps filenames...")
