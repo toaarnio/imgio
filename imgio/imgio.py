@@ -27,8 +27,6 @@ except ImportError:
     import pnm                    # local import: pnm.py
     import pfm                    # local import: pfm.py
 
-# pylint: disable=no-member
-
 ######################################################################################
 #
 #  P U B L I C   A P I
@@ -194,31 +192,35 @@ def _write_raw(filespec, image, maxval, pack=False, verbose=False):
 
 class _TestImgIo(unittest.TestCase):
 
-    def assertRaisesRegexp(self, exc_class, regex, func, *args, **kwargs):  # pylint: disable=invalid-name
+    def assertRaisesRegexp(self, expected_exception, expected_regex, *args, **kwargs):
         """
         Checks that the correct type of exception is raised, and that the exception
         message matches the given regular expression. Also prints out the message
         for visual inspection.
         """
         try:  # check the type of exception first
-            unittest.TestCase.assertRaises(self, exc_class, func, *args, **kwargs)
+            unittest.TestCase.assertRaises(self, expected_exception, *args, **kwargs)
         except Exception as e:
-            raised_type = sys.exc_info()[0]
-            errstr = "Expected %s with a message matching '%s', got %s."%(exc_class.__name__, regex, raised_type.__name__)
+            raised_name = sys.exc_info()[0].__name__
+            expected_name = expected_exception.__name___
+            errstr = "Expected %s with a message matching '%s', got %s."%(expected_name, expected_regex, raised_name)
             print("   FAIL: %s"%(errstr))
             raise AssertionError(errstr)
         try:  # then check the exception message
             assertRaisesRegex = getattr(unittest.TestCase, "assertRaisesRegex", unittest.TestCase.assertRaisesRegexp)
-            assertRaisesRegex(self, exc_class, regex, func, *args, **kwargs)  # python 2 vs. 3 compatibility hack
+            assertRaisesRegex(self, expected_exception, expected_regex, *args, **kwargs)  # python 2 vs. 3 compatibility
             try:  # print the exception message also when everything is OK
+                func = args[0]
+                args = args[1:]
                 func(*args, **kwargs)
-            except exc_class:
+            except expected_exception:
                 print("   PASS: %s"%(sys.exc_info()[1]))
         except AssertionError as e:
             print("   FAIL: %s"%(e))
             raise
 
     def test_exceptions(self):
+        # pylint: disable=deprecated-method
         print("Testing exception handling...")
         shape = (7, 11, 3)
         pixels = np.random.random(shape).astype(np.float32)
