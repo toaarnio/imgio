@@ -41,27 +41,30 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     as 3D arrays of shape H x W x 3.
     """
     ImageIOError.error_message_prefix = "Failed to read %s: "%(repr(filespec))
+    known_formats = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".insp", ".raw"]
     _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
-    filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
-    basename, filetype = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
-    _enforce(len(basename) > 1, "filename `%s` must have at least 1 character + extension."%(filename))
-    _enforce(len(filetype) > 3, "filename `%s` must have at least 1 character + extension."%(filename))
     _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)))
-    if filetype in [".raw", ".RAW"]:
+    filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
+    basename, extension = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
+    _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
+    _enforce(extension.lower() in known_formats, "unrecognized file extension `%s`."%(extension))
+    filetype = extension.lower()
+    if filetype == ".raw":
         _enforce(isinstance(bpp, int) and 1 <= bpp <= 16, "bpp must be an integer in [1, 16]; was %s"%(repr(bpp)))
         _enforce(isinstance(width, int) and width >= 1, "width must be an integer >= 1; was %s"%(repr(width)))
         _enforce(isinstance(height, int) and height >= 1, "height must be an integer >= 1; was %s"%(repr(height)))
         frame, maxval = _reraise(lambda: _read_raw(filespec, width, height, bpp, verbose=verbose))
         return frame, maxval
-    elif filetype in [".pfm", ".PFM"]:
+    elif filetype == ".pfm":
         frame, scale = _reraise(lambda: pfm.read(filespec, verbose))
         return frame, scale
-    elif filetype in [".pnm", ".pgm", ".ppm", ".PNM", ".PGM", ".PPM"]:
+    elif filetype in [".pnm", ".pgm", ".ppm"]:
         frame, maxval = _reraise(lambda: pnm.read(filespec, verbose))
         return frame, maxval
-    elif filetype in [".png", ".jpg", ".jpeg", ".PNG", ".JPG", ".JPEG"]:
+    elif filetype in [".png", ".jpg", ".jpeg", ".insp"]:
         _print(verbose, "Reading file %s "%(filespec), end='')
-        frame = _reraise(lambda: _imread.imread(filespec))
+        formatstr = "jpg" if filetype == ".insp" else filetype[1:]
+        frame = _reraise(lambda: _imread.imread(filespec, formatstr=formatstr))
         maxval = 255 if frame.dtype == np.uint8 else 65535
         h, w = frame.shape[:2]
         c = frame.shape[2] if frame.ndim > 2 else 1
@@ -80,6 +83,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     H x W x 3. Metadata, alpha channels, etc. are not supported.
     """
     ImageIOError.error_message_prefix = "Failed to write %s: "%(repr(filespec))
+    known_formats = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".insp", ".raw"]
     _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
     _enforce(isinstance(image, np.ndarray), "image must be a NumPy ndarray; was %s."%(type(image)))
     _enforce(image.dtype in [np.uint8, np.uint16, np.float32], "image.dtype must be uint8, uint16, or float32; was %s"%(image.dtype))
@@ -93,10 +97,11 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     _disallow(maxval > 255 and image.dtype == np.uint8, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
     _disallow(maxval <= 255 and image.dtype == np.uint16, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
     filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
-    basename, filetype = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
+    basename, extension = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
-    _enforce(len(filetype) > 3, "filename `%s` must have at least 1 character + extension."%(filename))
-    if filetype in [".raw", ".RAW"]:
+    _enforce(extension.lower() in known_formats, "unrecognized file extension `%s`."%(extension))
+    filetype = extension.lower()
+    if filetype == ".raw":
         _enforce(packed is False, "packed Bayer RAW images are not yet supported.")
         _enforce(image.ndim == 2, "image.shape must be (m, n) for a Bayer RAW; was %s."%(str(image.shape)))
         _reraise(lambda: _write_raw(filespec, image, maxval, packed, verbose))
@@ -105,11 +110,12 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         _reraise(lambda: pfm.write(filespec, image, maxval, verbose))
     elif filetype in [".pnm", ".pgm", ".ppm"]:
         _reraise(lambda: pnm.write(filespec, image, maxval, verbose))
-    elif filetype in [".png", ".jpg", ".jpeg"]:
+    elif filetype in [".png", ".jpg", ".jpeg", ".insp"]:
         _disallow(filetype in [".jpg", ".jpeg"] and maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
         _disallow(filetype == ".png" and maxval not in [255, 65535], "maxval must be 255 or 65535 for a PNG; was %d."%(maxval))
         _print(verbose, "Writing file %s "%(filespec), end='')
-        _reraise(lambda: _imread.imsave(filespec, image))
+        formatstr = "jpg" if filetype == ".insp" else filetype[1:]
+        _reraise(lambda: _imread.imsave(filespec, image, formatstr=formatstr))
         h, w = image.shape[:2]
         c = image.shape[2] if image.ndim > 2 else 1
         _print(verbose, "(w=%d, h=%d, c=%d, maxval=%d)"%(w, h, c, maxval))
@@ -233,6 +239,14 @@ class _TestImgIo(unittest.TestCase):
         os.rename("imgio.test.ppm", "invalidformat.pfm")
         os.rename("imgio.test.png", "invalidformat.jpg")
         os.rename("imgio.test.jpg", "invalidformat.ppm")
+        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, None)
+        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, 0xdeadbeef)
+        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "")
+        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, ".ppm")
+        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidfilename")
+        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting/")
+        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting/.ppm")
+        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting/invalidfilename")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.jpg")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.png")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.ppm")
@@ -244,6 +258,7 @@ class _TestImgIo(unittest.TestCase):
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidtype.bmp")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidtype.bmp")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read.*verbose", imread, "validimage.ppm", verbose="foo")
+        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invalidfilename", pixels8b, 255)
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invalidtype.bmp", pixels8b, 255)
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invaliddepth.ppm", pixels16b, 255)
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invaliddepth.png", pixels16b, 255)
@@ -315,17 +330,18 @@ class _TestImgIo(unittest.TestCase):
     def test_jpg(self):
         for shape in [(1, 1), (1, 1, 3), (7, 11), (9, 13, 3), (123, 321, 3)]:
             maxval = 255
-            tempfile = "imgio.test.jpg"
-            print("Testing JPG reading & writing...")
             pixels = np.ones(shape)
             pixels = (pixels * 127).astype(np.uint8)
-            imwrite(tempfile, pixels, maxval, verbose=False)
-            result, resmaxval = imread(tempfile, verbose=False)
-            self.assertEqual(resmaxval, maxval)
-            self.assertEqual(result.dtype, np.uint8)
-            self.assertEqual(result.shape, shape)
-            self.assertEqual(result.tolist(), pixels.tolist())
-            os.remove(tempfile)
+            for extension in ["jpg", "insp"]:
+                tempfile = "imgio.test." + extension
+                print("Testing %s reading & writing..."%(extension.upper()))
+                imwrite(tempfile, pixels, maxval, verbose=False)
+                result, resmaxval = imread(tempfile, verbose=False)
+                self.assertEqual(resmaxval, maxval)
+                self.assertEqual(result.dtype, np.uint8)
+                self.assertEqual(result.shape, shape)
+                self.assertEqual(result.tolist(), pixels.tolist())
+                os.remove(tempfile)
 
     def test_pfm(self):
         for shape in [(1, 1), (1, 1, 3), (7, 11), (9, 13, 3), (123, 321, 3)]:
@@ -355,7 +371,7 @@ class _TestImgIo(unittest.TestCase):
                     pixels = np.random.random(shape)
                     pixels = (pixels * maxval).astype(dtype)
                     imwrite(tempfile, pixels, maxval, packed=packed)
-                    result, resmaxval = imread(tempfile, shape[1], shape[0], bpp)
+                    result, resmaxval = imread(tempfile, width=shape[1], height=shape[0], bpp=bpp)
                     self.assertEqual(resmaxval, maxval)
                     self.assertEqual(result.dtype, dtype)
                     self.assertEqual(result.shape, shape)

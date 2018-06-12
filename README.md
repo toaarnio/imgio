@@ -4,6 +4,16 @@
 
 Easy image file reading &amp; writing for Python. Tested on Python 2.7 and 3.5+.
 
-Supports PGM / PPM / PNM / PFM / PNG / JPG, plus headerless Bayer RAW in read-only mode.
+Supports PGM / PPM / PNM / PFM / PNG / JPG / INSP, plus headerless Bayer RAW in read-only mode.
 
-Installation: `pip install imgio`
+**Installing from PyPI:**
+```
+pip install imgio
+```
+
+**Building & installing from source:**
+```
+python setup.py build sdist
+pip uninstall imgio
+pip install --user dist/*.tar.gz
+```
