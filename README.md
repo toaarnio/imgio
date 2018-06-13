@@ -8,12 +8,19 @@ Supports PGM / PPM / PNM / PFM / PNG / JPG / INSP, plus headerless Bayer RAW in 
 
 **Installing from PyPI:**
 ```
-pip install imgio
+pip3 install imgio
 ```
 
 **Building & installing from source:**
 ```
-python setup.py build sdist
-pip uninstall imgio
-pip install --user dist/*.tar.gz
+python3 setup.py build sdist
+pip3 uninstall imgio
+pip3 install --user dist/*.tar.gz
+```
+
+**Releasing to PyPI:**
+```
+pip3 install --user --upgrade setuptools wheel twine
+python3 setup.py sdist bdist_wheel
+twine upload dist/*
 ```
