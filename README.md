@@ -13,7 +13,7 @@ pip3 install imgio
 
 **Building & installing from source:**
 ```
-python3 setup.py build sdist
+python3 setup.py build sdist test
 pip3 uninstall imgio
 pip3 install --user dist/*.tar.gz
 ```

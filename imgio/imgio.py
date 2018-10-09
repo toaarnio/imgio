@@ -15,6 +15,7 @@ import os                         # standard library
 import sys                        # standard library
 import unittest                   # standard library
 
+import piexif                     # pip install piexif
 import numpy as np                # pip install numpy
 import imread as _imread          # pip install imread
 
@@ -71,6 +72,7 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
         _print(verbose, "(w=%d, h=%d, c=%d, maxval=%d)"%(w, h, c, maxval))
         must_squeeze = (frame.ndim > 2 and frame.shape[2] == 1)
         frame = frame.squeeze(axis=2) if must_squeeze else frame
+        frame = _reraise(lambda: _exif_rotate(frame, filespec))
         return frame, maxval
     else:
         raise ImageIOError("unrecognized file type `%s`."%(filetype))
@@ -163,6 +165,20 @@ def _reraise(func):
 def _print(verbose, *args, **kwargs):
     if verbose:
         print(*args, **kwargs)
+
+def _exif_rotate(img, filespec):
+    try:
+        orientation = 1
+        exif_dict = piexif.load(filespec).pop("0th")
+        exif_orientation = exif_dict.get(piexif.ImageIFD.Orientation)
+        orientation = 1 if exif_orientation is None else exif_orientation
+    except piexif._exceptions.InvalidImageDataError as e:
+        pass
+    finally:
+        exif_to_rot90 = {1: 0, 8: 1, 3: 2, 6: 3}
+        rot90_ccw_steps = exif_to_rot90[orientation]
+        img = np.rot90(img, rot90_ccw_steps)  # 0/90/180/270 CCW
+        return img
 
 def _read_raw(filespec, width, height, bpp, verbose=False):
     # Warning: hardcoded endianness (x86)
