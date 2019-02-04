@@ -176,8 +176,9 @@ def _exif_rotate(img, filespec):
         pass
     finally:
         exif_to_rot90 = {1: 0, 8: 1, 3: 2, 6: 3}
-        rot90_ccw_steps = exif_to_rot90[orientation]
-        img = np.rot90(img, rot90_ccw_steps)  # 0/90/180/270 CCW
+        if orientation in exif_to_rot90:  # screen out unknown orientations
+            rot90_ccw_steps = exif_to_rot90[orientation]
+            img = np.rot90(img, rot90_ccw_steps)  # 0/90/180/270 CCW
         return img
 
 def _read_raw(filespec, width, height, bpp, verbose=False):
