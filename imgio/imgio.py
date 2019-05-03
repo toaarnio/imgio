@@ -34,6 +34,9 @@ except ImportError:
 #
 ######################################################################################
 
+RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".insp", ".raw"]
+RO_FORMATS = RW_FORMATS
+
 def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     # type: (str, int, int, int, bool) -> Tuple[np.ndarray, Union[int, float]]
     """
@@ -42,13 +45,12 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     as 3D arrays of shape H x W x 3.
     """
     ImageIOError.error_message_prefix = "Failed to read %s: "%(repr(filespec))
-    known_formats = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".insp", ".raw"]
     _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
     _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)))
     filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
     basename, extension = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
-    _enforce(extension.lower() in known_formats, "unrecognized file extension `%s`."%(extension))
+    _enforce(extension.lower() in RO_FORMATS, "unrecognized file extension `%s`."%(extension))
     filetype = extension.lower()
     if filetype == ".raw":
         _enforce(isinstance(bpp, int) and 1 <= bpp <= 16, "bpp must be an integer in [1, 16]; was %s"%(repr(bpp)))
@@ -62,7 +64,7 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     elif filetype in [".pnm", ".pgm", ".ppm"]:
         frame, maxval = _reraise(lambda: pnm.read(filespec, verbose))
         return frame, maxval
-    elif filetype in [".png", ".jpg", ".jpeg", ".insp"]:
+    elif filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
         _print(verbose, "Reading file %s "%(filespec), end='')
         formatstr = "jpg" if filetype == ".insp" else filetype[1:]
         frame = _reraise(lambda: _imread.imread(filespec, formatstr=formatstr))
@@ -85,7 +87,6 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     H x W x 3. Metadata, alpha channels, etc. are not supported.
     """
     ImageIOError.error_message_prefix = "Failed to write %s: "%(repr(filespec))
-    known_formats = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".insp", ".raw"]
     _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
     _enforce(isinstance(image, np.ndarray), "image must be a NumPy ndarray; was %s."%(type(image)))
     _enforce(image.dtype in [np.uint8, np.uint16, np.float32], "image.dtype must be uint8, uint16, or float32; was %s"%(image.dtype))
@@ -101,7 +102,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
     basename, extension = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
-    _enforce(extension.lower() in known_formats, "unrecognized file extension `%s`."%(extension))
+    _enforce(extension.lower() in RW_FORMATS, "unrecognized file extension `%s`."%(extension))
     filetype = extension.lower()
     if filetype == ".raw":
         _enforce(packed is False, "packed Bayer RAW images are not yet supported.")
@@ -112,7 +113,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         _reraise(lambda: pfm.write(filespec, image, maxval, verbose))
     elif filetype in [".pnm", ".pgm", ".ppm"]:
         _reraise(lambda: pnm.write(filespec, image, maxval, verbose))
-    elif filetype in [".png", ".jpg", ".jpeg", ".insp"]:
+    elif filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
         _disallow(filetype in [".jpg", ".jpeg"] and maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
         _disallow(filetype == ".png" and maxval not in [255, 65535], "maxval must be 255 or 65535 for a PNG; was %d."%(maxval))
         _print(verbose, "Writing file %s "%(filespec), end='')
@@ -333,6 +334,23 @@ class _TestImgIo(unittest.TestCase):
                 maxval = 2**bpp - 1
                 tempfile = "imgio.test%db.pnm"%(bpp)
                 print("Testing PGM/PPM reading & writing in %d-bit mode, shape=%s..."%(bpp, repr(shape)))
+                dtype = np.uint8 if bpp <= 8 else np.uint16
+                pixels = np.random.random(shape)
+                pixels = (pixels * maxval).astype(dtype)
+                imwrite(tempfile, pixels, maxval, verbose=False)
+                result, resmaxval = imread(tempfile, verbose=False)
+                self.assertEqual(resmaxval, maxval)
+                self.assertEqual(result.dtype, dtype)
+                self.assertEqual(result.shape, shape)
+                self.assertEqual(result.tolist(), pixels.tolist())
+                os.remove(tempfile)
+
+    def test_tiff(self):
+        for shape in [(1, 1), (1, 1, 3), (7, 11), (9, 13, 3), (123, 321, 3)]:
+            for bpp in [8, 16]:
+                maxval = 2**bpp - 1
+                tempfile = "imgio.test%db.tif"%(bpp)
+                print("Testing TIFF reading & writing in %d-bit mode, shape=%s..."%(bpp, repr(shape)))
                 dtype = np.uint8 if bpp <= 8 else np.uint16
                 pixels = np.random.random(shape)
                 pixels = (pixels * maxval).astype(dtype)
