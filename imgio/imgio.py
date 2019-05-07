@@ -170,7 +170,8 @@ def _print(verbose, *args, **kwargs):
 def _exif_rotate(img, filespec):
     try:
         orientation = 1
-        exif_dict = piexif.load(filespec).pop("0th")
+        with open(filespec) as imgfile:
+            exif_dict = piexif.load(imgfile).pop("0th")
         exif_orientation = exif_dict.get(piexif.ImageIFD.Orientation)
         orientation = 1 if exif_orientation is None else exif_orientation
     except piexif._exceptions.InvalidImageDataError as e:
