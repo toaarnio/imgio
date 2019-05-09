@@ -47,7 +47,7 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     ImageIOError.error_message_prefix = "Failed to read %s: "%(repr(filespec))
     _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
     _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)))
-    filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
+    filename = os.path.basename(filespec)             # "path/image.pgm" => "image.pgm"
     basename, extension = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
     _enforce(extension.lower() in RO_FORMATS, "unrecognized file extension `%s`."%(extension))
@@ -69,12 +69,12 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
         formatstr = "jpg" if filetype == ".insp" else filetype[1:]
         frame = _reraise(lambda: _imread.imread(filespec, formatstr=formatstr))
         maxval = 255 if frame.dtype == np.uint8 else 65535
-        h, w = frame.shape[:2]
-        c = frame.shape[2] if frame.ndim > 2 else 1
-        _print(verbose, "(w=%d, h=%d, c=%d, maxval=%d)"%(w, h, c, maxval))
         must_squeeze = (frame.ndim > 2 and frame.shape[2] == 1)
         frame = frame.squeeze(axis=2) if must_squeeze else frame
         frame = _reraise(lambda: _exif_rotate(frame, filespec))
+        h, w = frame.shape[:2]
+        c = frame.shape[2] if frame.ndim > 2 else 1
+        _print(verbose, "(w=%d, h=%d, c=%d, maxval=%d)"%(w, h, c, maxval))
         return frame, maxval
     else:
         raise ImageIOError("unrecognized file type `%s`."%(filetype))
@@ -131,7 +131,7 @@ def selftest():
     """
     print("--" * 35)
     suite = unittest.TestLoader().loadTestsFromTestCase(_TestImgIo)
-    unittest.TextTestRunner(verbosity=0).run(suite)
+    unittest.TextTestRunner(verbosity=0, failfast=True).run(suite)
 
 class ImageIOError(RuntimeError):
     """
@@ -170,15 +170,18 @@ def _print(verbose, *args, **kwargs):
 def _exif_rotate(img, filespec):
     try:
         orientation = 1
-        with open(filespec) as imgfile:
-            exif_dict = piexif.load(imgfile).pop("0th")
+        exif_dict = piexif.load(filespec).pop("0th")
         exif_orientation = exif_dict.get(piexif.ImageIFD.Orientation)
         orientation = 1 if exif_orientation is None else exif_orientation
     except piexif._exceptions.InvalidImageDataError as e:
         pass
     finally:
-        exif_to_rot90 = {1: 0, 8: 1, 3: 2, 6: 3}
-        if orientation in exif_to_rot90:  # screen out unknown orientations
+        exif_to_rot90 = {1:0, 2:0, 3:2, 4:0, 5:1, 6:3, 7:3, 8:1}
+        if orientation in [2, 5, 7]:
+            img = np.fliplr(img)
+        if orientation in [4]:
+            img = np.flipud(img)
+        if orientation in exif_to_rot90:
             rot90_ccw_steps = exif_to_rot90[orientation]
             img = np.rot90(img, rot90_ccw_steps)  # 0/90/180/270 CCW
         return img
@@ -394,6 +397,23 @@ class _TestImgIo(unittest.TestCase):
             self.assertEqual(result.shape, shape)
             self.assertEqual(result.shape, shape)
             os.remove(tempfile)
+
+    def test_exif(self):
+        print("Testing EXIF orientation handling...")
+        thispath = os.path.dirname(os.path.abspath(__file__))
+        for orientation in ["landscape", "portrait"]:
+            reffile = "%s_1.jpg"%(orientation)
+            filespec = os.path.join(thispath, "test-images", reffile)
+            refimg, refmax = imread(filespec)
+            for idx in range(2, 9):
+                filename = "%s_%d.jpg"%(orientation, idx)
+                print("  %s image, orientation value = %d"%(orientation, idx))
+                filespec = os.path.join(thispath, "test-images", filename)
+                testimg, testmax = imread(filespec, verbose=False)
+                epsdiff = np.isclose(refimg, testimg, atol=5.0, rtol=0.2)
+                self.assertEqual(refmax, testmax)
+                self.assertEqual(refimg.shape, testimg.shape)
+                self.assertGreater(np.sum(epsdiff), 0.5 * epsdiff.size)
 
     def test_raw(self):
         for packed in [False]:
