@@ -2,11 +2,13 @@ from setuptools import setup, find_packages
 
 import imgio
 
+
 def read_deps(filename):
     with open(filename) as f:
         deps = f.read().split('\n')
         deps.remove("")
     return deps
+
 
 setup(name='imgio',
       version=imgio.__version__,
