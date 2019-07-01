@@ -28,8 +28,7 @@ def read(filename, verbose=False):
         if parsed is not None:
             pixels, scale = parsed
             return pixels, scale
-        else:
-            raise RuntimeError("File %s is not a valid PFM file."%(filename))
+        raise RuntimeError("File %s is not a valid PFM file."%(filename))
 
 def write(filename, pixels, scale=1.0, little_endian=True, verbose=False):
     """

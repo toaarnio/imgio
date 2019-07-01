@@ -39,6 +39,7 @@ RO_FORMATS = RW_FORMATS
 
 def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     # type: (str, int, int, int, bool) -> Tuple[np.ndarray, Union[int, float]]
+    # pylint: disable=too-many-locals
     """
     Reads the given image file from disk and returns it as a NumPy array.
     Grayscale images are returned as 2D arrays of shape H x W, color images
@@ -58,13 +59,13 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
         _enforce(isinstance(height, int) and height >= 1, "height must be an integer >= 1; was %s"%(repr(height)))
         frame, maxval = _reraise(lambda: _read_raw(filespec, width, height, bpp, verbose=verbose))
         return frame, maxval
-    elif filetype == ".pfm":
+    if filetype == ".pfm":
         frame, scale = _reraise(lambda: pfm.read(filespec, verbose))
         return frame, scale
-    elif filetype in [".pnm", ".pgm", ".ppm"]:
+    if filetype in [".pnm", ".pgm", ".ppm"]:
         frame, maxval = _reraise(lambda: pnm.read(filespec, verbose))
         return frame, maxval
-    elif filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
+    if filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
         _print(verbose, "Reading file %s "%(filespec), end='')
         formatstr = "jpg" if filetype == ".insp" else filetype[1:]
         frame = _reraise(lambda: _imread.imread(filespec, formatstr=formatstr))
@@ -76,15 +77,14 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
         c = frame.shape[2] if frame.ndim > 2 else 1
         _print(verbose, "(w=%d, h=%d, c=%d, maxval=%d)"%(w, h, c, maxval))
         return frame, maxval
-    else:
-        raise ImageIOError("unrecognized file type `%s`."%(filetype))
+    raise ImageIOError("unrecognized file type `%s`."%(filetype))
 
 def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     # type: (str, np.ndarray, Union[int, float], bool, bool) -> None
     """
-    Writes the given image to the given file. Grayscale images are expected
-    to be provided as NumPy arrays with shape H x W, color images with shape
-    H x W x 3. Metadata, alpha channels, etc. are not supported.
+    Writes the given image to the given file, returns nothing. Grayscale images
+    are expected to be provided as NumPy arrays with shape H x W, color images
+    with shape H x W x 3. Metadata, alpha channels, etc. are not supported.
     """
     ImageIOError.error_message_prefix = "Failed to write %s: "%(repr(filespec))
     _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
@@ -173,18 +173,17 @@ def _exif_rotate(img, filespec):
         exif_dict = piexif.load(filespec).pop("0th")
         exif_orientation = exif_dict.get(piexif.ImageIFD.Orientation)
         orientation = 1 if exif_orientation is None else exif_orientation
-    except piexif._exceptions.InvalidImageDataError as e:
+    except piexif.InvalidImageDataError:
         pass
-    finally:
-        exif_to_rot90 = {1:0, 2:0, 3:2, 4:0, 5:1, 6:3, 7:3, 8:1}
-        if orientation in [2, 5, 7]:
-            img = np.fliplr(img)
-        if orientation in [4]:
-            img = np.flipud(img)
-        if orientation in exif_to_rot90:
-            rot90_ccw_steps = exif_to_rot90[orientation]
-            img = np.rot90(img, rot90_ccw_steps)  # 0/90/180/270 CCW
-        return img
+    exif_to_rot90 = {1: 0, 2: 0, 3: 2, 4: 0, 5: 1, 6: 3, 7: 3, 8: 1}
+    if orientation in [2, 5, 7]:
+        img = np.fliplr(img)
+    if orientation in [4]:
+        img = np.flipud(img)
+    if orientation in exif_to_rot90:
+        rot90_ccw_steps = exif_to_rot90[orientation]
+        img = np.rot90(img, rot90_ccw_steps)  # 0/90/180/270 CCW
+    return img
 
 def _read_raw(filespec, width, height, bpp, verbose=False):
     # Warning: hardcoded endianness (x86)
@@ -201,13 +200,13 @@ def _read_raw(filespec, width, height, bpp, verbose=False):
             pixels = np.frombuffer(buf, dtype, count=width * height, offset=0)
             pixels = pixels.reshape(shape).astype(np.uint8 if bpp <= 8 else np.uint16)
         else:
-            # TODO: unpack!
+            # TODO: packed raw support
             raise ImageIOError("Packed RAW reading not implemented yet!")
         return pixels, maxval
 
 def _write_raw(filespec, image, maxval, pack=False, verbose=False):
+    # TODO: packed raw support
     # Warning: hardcoded endianness (x86)
-    bpp = int(np.log2(maxval + 1))
     with open(filespec, "wb") as outfile:
         image = image.copy(order='C')  # ensure x86 byte order
         outfile.write(image)
@@ -249,6 +248,7 @@ class _TestImgIo(unittest.TestCase):
 
     def test_exceptions(self):
         # pylint: disable=deprecated-method
+        # pylint: disable=too-many-statements
         print("Testing exception handling...")
         shape = (7, 11, 3)
         pixels = np.random.random(shape).astype(np.float32)
@@ -373,7 +373,7 @@ class _TestImgIo(unittest.TestCase):
             pixels = (pixels * 127).astype(np.uint8)
             for extension in ["jpg", "insp"]:
                 tempfile = "imgio.test." + extension
-                print("Testing %s reading & writing..."%(extension.upper()))
+                print("Testing %s reading & writing, shape=%s..."%(extension.upper(), repr(shape)))
                 imwrite(tempfile, pixels, maxval, verbose=False)
                 result, resmaxval = imread(tempfile, verbose=False)
                 self.assertEqual(resmaxval, maxval)

@@ -41,8 +41,7 @@ def read(filespec, verbose=False):
             pixels = np.frombuffer(buf, dtype, count=width * height * numch, offset=len(header))
             pixels = pixels.reshape(shape).astype(np.uint8 if maxval <= 255 else np.uint16)
             return pixels, maxval
-        else:
-            raise RuntimeError("File %s is not a valid PGM/PPM file."%(filespec))
+        raise RuntimeError("File %s is not a valid PGM/PPM file."%(filespec))
 
 def write(filespec, image, maxval, verbose=False):
     """
