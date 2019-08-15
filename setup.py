@@ -19,5 +19,6 @@ setup(name='imgio',
       license='MIT',
       packages=find_packages(),
       install_requires=read_deps("requirements.txt"),
+      include_package_data=True,
       test_suite='imgio',
       zip_safe=False)
