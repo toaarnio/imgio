@@ -110,7 +110,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         _reraise(lambda: _write_raw(filespec, image, maxval, packed, verbose))
     elif filetype == ".pfm":
         _enforce(maxval >= 0.0, "maxval (scale) must be non-negative; was %s."%(repr(maxval)))
-        _reraise(lambda: pfm.write(filespec, image, maxval, verbose))
+        _reraise(lambda: pfm.write(filespec, image, maxval, little_endian=True, verbose=verbose))
     elif filetype in [".pnm", ".pgm", ".ppm"]:
         _reraise(lambda: pnm.write(filespec, image, maxval, verbose))
     elif filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
