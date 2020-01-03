@@ -8,9 +8,6 @@ Example:
   imgio.imwrite("foo.ppm", image, maxval)
 """
 
-from __future__ import absolute_import
-from __future__ import print_function as __print
-
 import os                         # standard library
 import sys                        # standard library
 import unittest                   # standard library

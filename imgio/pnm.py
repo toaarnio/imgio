@@ -2,8 +2,6 @@
 Utility functions for reading and writing RGB and grayscale PGM/PPM files.
 """
 
-from __future__ import print_function as __print
-
 import re
 import numpy as np
 
