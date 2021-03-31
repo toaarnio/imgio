@@ -392,7 +392,7 @@ class _TestImgIo(unittest.TestCase):
             self.assertEqual(resscale, scale)
             self.assertEqual(result.dtype, np.float32)
             self.assertEqual(result.shape, shape)
-            self.assertEqual(result.shape, shape)
+            self.assertTrue(np.allclose(result, pixels))
             os.remove(tempfile)
 
     def test_exif(self):
