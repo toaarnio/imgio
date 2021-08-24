@@ -190,11 +190,12 @@ def _read_raw(filespec, width, height, bpp, verbose=False):
         maxval = 2 ** bpp - 1
         wordsize = 2 if bpp > 8 else 1
         packed = len(buf) < (width * height * wordsize)
+        nheader = len(buf) - (width * height * wordsize)
         _print(verbose, "Reading raw Bayer file %s "%(filespec), end='')
-        _print(verbose, "(w=%d, h=%d, maxval=%d, packed=%r)"%(width, height, maxval, packed))
+        _print(verbose, "(w=%d, h=%d, maxval=%d, header=%d, packed=%r)"%(width, height, maxval, nheader, packed))
         if not packed:
             dtype = "<u2" if bpp > 8 else np.uint8
-            pixels = np.frombuffer(buf, dtype, count=width * height, offset=0)
+            pixels = np.frombuffer(buf, dtype, count=width * height, offset=nheader)
             pixels = pixels.reshape(shape).astype(np.uint8 if bpp <= 8 else np.uint16)
         else:
             # TODO: packed raw support
