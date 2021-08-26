@@ -1,7 +1,7 @@
 #!/usr/bin/python3 -B
 
 """
-Easy image file reading & writing. Supports PGM/PPM/PFM/PNG/JPG.
+Easy image file reading & writing. Supports PGM/PPM/PNM/PFM/PNG/JPG/TIFF/EXR/RAW.
 
 Example:
   image, maxval = imgio.imread("foo.png")
@@ -15,6 +15,7 @@ import unittest                   # standard library
 import piexif                     # pip install piexif
 import numpy as np                # pip install numpy
 import imread as _imread          # pip install imread
+import pyexr                      # pip install pyexr
 
 try:
     # package mode
@@ -32,7 +33,7 @@ except ImportError:
 ######################################################################################
 
 RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".insp", ".raw"]
-RO_FORMATS = RW_FORMATS
+RO_FORMATS = RW_FORMATS + [".exr"]
 
 def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     # type: (str, int, int, int, bool) -> Tuple[np.ndarray, Union[int, float]]
@@ -59,6 +60,9 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
     if filetype == ".pfm":
         frame, scale = _reraise(lambda: pfm.read(filespec, verbose))
         return frame, scale
+    if filetype == ".exr":
+        frame, maxval = _reraise(lambda: _read_exr(filespec, verbose))
+        return frame, maxval
     if filetype in [".pnm", ".pgm", ".ppm"]:
         frame, maxval = _reraise(lambda: pnm.read(filespec, verbose))
         return frame, maxval
@@ -181,6 +185,14 @@ def _exif_rotate(img, filespec):
         rot90_ccw_steps = exif_to_rot90[orientation]
         img = np.rot90(img, rot90_ccw_steps)  # 0/90/180/270 CCW
     return img
+
+def _read_exr(filespec, verbose=True):
+    exr = pyexr.open(filespec)
+    data = exr.get()
+    maxval = np.max(data)
+    _print(verbose, "Reading OpenEXR file %s "%(filespec), end='')
+    _print(verbose, "(w=%d, h=%d, c=%d, %s)"%(exr.width, exr.height, len(exr.channels), data.dtype))
+    return data, maxval
 
 def _read_raw(filespec, width, height, bpp, verbose=False):
     # Warning: hardcoded endianness (x86)
@@ -412,6 +424,15 @@ class _TestImgIo(unittest.TestCase):
                 self.assertEqual(refmax, testmax)
                 self.assertEqual(refimg.shape, testimg.shape)
                 self.assertGreater(np.sum(epsdiff), 0.5 * epsdiff.size)
+
+    def test_exr(self):
+        print("Testing EXR reading...")
+        thispath = os.path.dirname(os.path.abspath(__file__))
+        filespec = os.path.join(thispath, "test-images", "GrayRampsDiagonal.exr")
+        img, maxval = imread(filespec)
+        self.assertEqual(img.shape, (800, 800, 1))
+        self.assertEqual(img.dtype, np.float32)
+        self.assertEqual(maxval, np.max(img))
 
     def test_raw(self):
         for packed in [False]:

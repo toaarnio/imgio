@@ -4,7 +4,7 @@
 
 Easy image file reading &amp; writing for Python. Tested on Python 3.6+.
 
-Supports PGM / PPM / PNM / PFM / PNG / JPG / INSP, plus headerless Bayer RAW in read-only mode.
+Supports PGM / PPM / PNM / PFM / PNG / JPG / INSP / TIFF, plus EXR and Bayer RAW in read-only mode.
 
 **Installing on Linux:**
 ```
