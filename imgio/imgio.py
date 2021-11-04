@@ -35,7 +35,7 @@ except ImportError:
 RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".insp", ".raw"]
 RO_FORMATS = RW_FORMATS + [".exr"]
 
-def imread(filespec, width=None, height=None, bpp=None, verbose=False):
+def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, verbose=False):
     # type: (str, int, int, int, bool) -> Tuple[np.ndarray, Union[int, float]]
     # pylint: disable=too-many-locals
     """
@@ -55,7 +55,7 @@ def imread(filespec, width=None, height=None, bpp=None, verbose=False):
         _enforce(isinstance(bpp, int) and 1 <= bpp <= 16, "bpp must be an integer in [1, 16]; was %s"%(repr(bpp)))
         _enforce(isinstance(width, int) and width >= 1, "width must be an integer >= 1; was %s"%(repr(width)))
         _enforce(isinstance(height, int) and height >= 1, "height must be an integer >= 1; was %s"%(repr(height)))
-        frame, maxval = _reraise(lambda: _read_raw(filespec, width, height, bpp, verbose=verbose))
+        frame, maxval = _reraise(lambda: _read_raw(filespec, width, height, bpp, raw_header_size, verbose=verbose))
         return frame, maxval
     if filetype == ".pfm":
         frame, scale = _reraise(lambda: pfm.read(filespec, verbose))
@@ -194,7 +194,7 @@ def _read_exr(filespec, verbose=True):
     _print(verbose, "(w=%d, h=%d, c=%d, %s)"%(exr.width, exr.height, len(exr.channels), data.dtype))
     return data, maxval
 
-def _read_raw(filespec, width, height, bpp, verbose=False):
+def _read_raw(filespec, width, height, bpp, header_size=None, verbose=False):
     # Warning: hardcoded endianness (x86)
     with open(filespec, "rb") as infile:
         buf = infile.read()
@@ -202,12 +202,13 @@ def _read_raw(filespec, width, height, bpp, verbose=False):
         maxval = 2 ** bpp - 1
         wordsize = 2 if bpp > 8 else 1
         packed = len(buf) < (width * height * wordsize)
-        nheader = len(buf) - (width * height * wordsize)
+        if header_size is None:
+            header_size = len(buf) - (width * height * wordsize)
         _print(verbose, "Reading raw Bayer file %s "%(filespec), end='')
-        _print(verbose, "(w=%d, h=%d, maxval=%d, header=%d, packed=%r)"%(width, height, maxval, nheader, packed))
+        _print(verbose, "(w=%d, h=%d, maxval=%d, header=%d, packed=%r)"%(width, height, maxval, header_size, packed))
         if not packed:
             dtype = "<u2" if bpp > 8 else np.uint8
-            pixels = np.frombuffer(buf, dtype, count=width * height, offset=nheader)
+            pixels = np.frombuffer(buf, dtype, count=width * height, offset=header_size)
             pixels = pixels.reshape(shape).astype(np.uint8 if bpp <= 8 else np.uint16)
         else:
             # TODO: packed raw support
@@ -452,6 +453,25 @@ class _TestImgIo(unittest.TestCase):
                     self.assertEqual(result.shape, shape)
                     self.assertEqual(result.tolist(), pixels.tolist())
                     os.remove(tempfile)
+
+    def test_raw_header(self):
+        bpp = 12
+        shape = (28, 60)
+        maxval = 2**bpp - 1
+        tempfile = "imgio.test%db.raw"%(bpp)
+        print("Testing RAW header reading & writing...")
+        header = np.arange(17).astype(np.uint16)
+        footer = np.arange(19).astype(np.uint16)
+        pixels = np.random.random(shape)
+        pixels = (pixels * maxval).astype(np.uint16)
+        data = np.hstack((header, pixels.flatten(), footer)).reshape(1, -1)
+        imwrite(tempfile, data, maxval)
+        result, resmaxval = imread(tempfile, width=shape[1], height=shape[0], bpp=bpp, raw_header_size=17*2)
+        self.assertEqual(resmaxval, maxval)
+        self.assertEqual(result.dtype, np.uint16)
+        self.assertEqual(result.shape, shape)
+        self.assertEqual(result.tolist(), pixels.tolist())
+        os.remove(tempfile)
 
     def test_allcaps(self):
         print("Testing Windows-style all-caps filenames...")
