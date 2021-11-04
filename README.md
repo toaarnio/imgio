@@ -1,6 +1,6 @@
 # imgio
 
-[![Build Status](https://travis-ci.org/toaarnio/imgio.svg?branch=master)](https://travis-ci.org/toaarnio/imgio)
+[![Build Status](https://travis-ci.com/toaarnio/imgio.svg?branch=master)](https://travis-ci.com/github/toaarnio/imgio)
 
 Easy image file reading &amp; writing for Python. Tested on Python 3.6+.
 
