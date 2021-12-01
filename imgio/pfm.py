@@ -32,8 +32,8 @@ def write(filename, pixels, scale=1.0, little_endian=True, verbose=False):
     """
     Writes the contents of the given float32 ndarray into a 1- or 3-channel
     PFM file by the given name. Both little-endian and big-endian files are
-    supported. The shape of the given array must be (h, w, c), where c is
-    either 1 or 3.
+    supported. The shape of the given array must be (h, w) or (h, w, c),
+    where c is either 1 or 3.
     """
     with open(filename, 'wb') as f:
         if verbose:
@@ -61,14 +61,14 @@ def parse(pfm_bytearray, verbose=False):
             print("(w=%d, h=%d, c=%d, scale=%.3f, byteorder='%s')"%(width, height, numchannels, scale, dtype[0]))
         f32 = np.frombuffer(pfm_bytearray, dtype=dtype, count=width * height * numchannels, offset=len(header))
         f32 = f32.reshape((height, width) if numchannels == 1 else (height, width, 3))
-        f32 = f32.astype(np.float32)  # pylint: disable=no-member
+        f32 = f32.astype(np.float32)
         return f32, scale
     return None
 
 def generate(pixels, scale=1.0, little_endian=True, verbose=False):
     """
-    Converts the given float32 ndarray into an immutable byte array representing
-    the contents of a PFM file. The byte array can be written to disk as-is. Both
+    Converts the given ndarray into an immutable byte array representing
+    a float32 PFM file. The byte array can be written to disk as-is. Both
     1-channel and 3-channel images are supported, and the pixels can be written
     in little-endian or big-endian order. The shape of the given array must be
     either (h, w), representing grayscale data, or (h, w, c), where c is either
@@ -80,14 +80,13 @@ def generate(pixels, scale=1.0, little_endian=True, verbose=False):
     typestr = "PF" if numchannels == 3 else "Pf"
     width = pixels.shape[1]
     height = pixels.shape[0]
-    f32 = pixels.astype(np.float32)  # pylint: disable=no-member
+    f32 = pixels.astype(np.float32)
     if little_endian:
         byteorder = "<"
         scale = -scale
         f32bs = f32
     else:
         byteorder = ">"
-        scale = scale
         f32bs = f32.byteswap()
     if verbose:
         print("(w=%d, h=%d, c=%d, scale=%.3f, byteorder='%s')"%(width, height, numchannels, abs(scale), byteorder))
