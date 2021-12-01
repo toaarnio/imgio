@@ -36,8 +36,6 @@ RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".tif", "
 RO_FORMATS = RW_FORMATS + [".exr"]
 
 def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, verbose=False):
-    # type: (str, int, int, int, bool) -> Tuple[np.ndarray, Union[int, float]]
-    # pylint: disable=too-many-locals
     """
     Reads the given image file from disk and returns it as a NumPy array.
     Grayscale images are returned as 2D arrays of shape H x W, color images
@@ -81,7 +79,6 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
     raise ImageIOError("unrecognized file type `%s`."%(filetype))
 
 def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
-    # type: (str, np.ndarray, Union[int, float], bool, bool) -> None
     """
     Writes the given image to the given file, returns nothing. Grayscale images
     are expected to be provided as NumPy arrays with shape H x W, color images
@@ -148,8 +145,6 @@ class ImageIOError(RuntimeError):
 #
 ######################################################################################
 
-# pylint: disable=missing-docstring
-
 def _enforce(expression, error_message_if_false):
     if not expression:
         raise ImageIOError("%s"%(error_message_if_false))
@@ -161,8 +156,8 @@ def _disallow(expression, error_message_if_true):
 def _reraise(func):
     try:
         return func()
-    except Exception:
-        raise ImageIOError("%s"%(repr(sys.exc_info()[1])))
+    except Exception as e:
+        raise ImageIOError("%s"%(repr(sys.exc_info()[1]))) from e
 
 def _print(verbose, *args, **kwargs):
     if verbose:
@@ -215,7 +210,7 @@ def _read_raw(filespec, width, height, bpp, header_size=None, verbose=False):
             raise ImageIOError("Packed RAW reading not implemented yet!")
         return pixels, maxval
 
-def _write_raw(filespec, image, maxval, pack=False, verbose=False):
+def _write_raw(filespec, image, _maxval, _pack=False, _verbose=False):
     # TODO: packed raw support
     # Warning: hardcoded endianness (x86)
     with open(filespec, "wb") as outfile:
@@ -243,7 +238,7 @@ class _TestImgIo(unittest.TestCase):
             expected_name = expected_exception.__name___
             errstr = "Expected %s with a message matching '%s', got %s."%(expected_name, expected_regex, raised_name)
             print("   FAIL: %s"%(errstr))
-            raise AssertionError(errstr)
+            raise AssertionError(errstr) from e
         try:  # then check the exception message
             assertRaisesRegex = getattr(unittest.TestCase, "assertRaisesRegex", unittest.TestCase.assertRaisesRegexp)
             assertRaisesRegex(self, expected_exception, expected_regex, *args, **kwargs)  # python 2 vs. 3 compatibility
@@ -258,7 +253,6 @@ class _TestImgIo(unittest.TestCase):
             raise
 
     def test_exceptions(self):
-        # pylint: disable=deprecated-method
         # pylint: disable=too-many-statements
         print("Testing exception handling...")
         shape = (7, 11, 3)
@@ -312,7 +306,7 @@ class _TestImgIo(unittest.TestCase):
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 7, 2), np.uint8))
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 7, 4), np.uint8))
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 7, 3, 1), np.uint8))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(np.bool))
+        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(bool))
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(np.float16))
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(np.float64))
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype('>f4'))
@@ -466,7 +460,7 @@ class _TestImgIo(unittest.TestCase):
         pixels = (pixels * maxval).astype(np.uint16)
         data = np.hstack((header, pixels.flatten(), footer)).reshape(1, -1)
         imwrite(tempfile, data, maxval)
-        result, resmaxval = imread(tempfile, width=shape[1], height=shape[0], bpp=bpp, raw_header_size=17*2)
+        result, resmaxval = imread(tempfile, width=shape[1], height=shape[0], bpp=bpp, raw_header_size=17 * 2)
         self.assertEqual(resmaxval, maxval)
         self.assertEqual(result.dtype, np.uint16)
         self.assertEqual(result.shape, shape)
