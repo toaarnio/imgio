@@ -5,9 +5,6 @@ Utility functions for reading and writing RGB and grayscale PGM/PPM files.
 import re
 import numpy as np
 
-# pylint: disable=no-member
-# pylint: disable=too-many-locals
-
 ######################################################################################
 #
 #  P U B L I C   A P I
