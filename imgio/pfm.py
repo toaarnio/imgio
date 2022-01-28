@@ -57,11 +57,12 @@ def parse(pfm_bytearray, verbose=False):
         numchannels = 3 if typestr == b"PF" else 1
         dtype = "<f" if scale < 0.0 else ">f"
         scale = abs(scale)
-        if verbose:
-            print("(w=%d, h=%d, c=%d, scale=%.3f, byteorder='%s')"%(width, height, numchannels, scale, dtype[0]))
         f32 = np.frombuffer(pfm_bytearray, dtype=dtype, count=width * height * numchannels, offset=len(header))
         f32 = f32.reshape((height, width) if numchannels == 1 else (height, width, 3))
         f32 = f32.astype(np.float32)
+        if verbose:
+            maxx = np.max(f32)
+            print("(w=%d, h=%d, c=%d, scale=%.2f, max=%.2f, byteorder='%s')"%(width, height, numchannels, scale, maxx, dtype[0]))
         return f32, scale
     return None
 
