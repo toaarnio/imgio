@@ -10,15 +10,15 @@ def read_deps(filename):
     return deps
 
 
-setup(name='imgio',
+setup(name="imgio",
       version=imgio.__version__,
-      description='Easy image reading & writing. Supports PGM/PPM/PNM/PFM/PNG/TIFF/JPG/INSP/RAW.',
-      url='http://github.com/toaarnio/imgio',
-      author='Tomi Aarnio',
-      author_email='tomi.p.aarnio@gmail.com',
-      license='MIT',
+      description="Easy image reading & writing.",
+      url="http://github.com/toaarnio/imgio",
+      author="Tomi Aarnio",
+      author_email="tomi.p.aarnio@gmail.com",
+      license="MIT",
       packages=find_packages(),
       install_requires=read_deps("requirements.txt"),
       include_package_data=True,
-      test_suite='imgio',
+      test_suite="imgio",
       zip_safe=False)

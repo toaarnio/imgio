@@ -1,7 +1,7 @@
 #!/usr/bin/python3 -B
 
 """
-Easy image file reading & writing. Supports PGM/PPM/PNM/PFM/PNG/JPG/TIFF/EXR/RAW.
+Easy image file reading & writing. Supports PGM/PPM/PNM/PFM/PNG/BMP/JPG/TIFF/EXR/RAW.
 
 Example:
   image, maxval = imgio.imread("foo.png")
@@ -33,7 +33,7 @@ except ImportError:
 ######################################################################################
 
 RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".insp", ".raw"]
-RO_FORMATS = RW_FORMATS + [".exr"]
+RO_FORMATS = RW_FORMATS + [".exr", ".bmp"]
 
 def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, verbose=False):
     """
@@ -64,7 +64,7 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
     if filetype in [".pnm", ".pgm", ".ppm"]:
         frame, maxval = _reraise(lambda: pnm.read(filespec, verbose))
         return frame, maxval
-    if filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
+    if filetype in [".png", ".bmp", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
         _print(verbose, "Reading file %s "%(filespec), end='')
         formatstr = "jpg" if filetype == ".insp" else filetype[1:]
         frame = _reraise(lambda: _imread.imread(filespec, formatstr=formatstr))
@@ -100,7 +100,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
     basename, extension = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
-    _enforce(extension.lower() in RW_FORMATS, "unrecognized file extension `%s`."%(extension))
+    _enforce(extension.lower() in RW_FORMATS, "unrecognized or unsupported file extension `%s`."%(extension))
     filetype = extension.lower()
     if filetype == ".raw":
         _enforce(packed is False, "packed Bayer RAW images are not yet supported.")
@@ -279,11 +279,10 @@ class _TestImgIo(unittest.TestCase):
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.ppm")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.pgm")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.pfm")
+        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.bmp")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidformat.pfm")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidformat.jpg")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidformat.ppm")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidtype.bmp")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidtype.bmp")
         self.assertRaisesRegexp(ImageIOError, "^Failed to read.*verbose", imread, "validimage.ppm", verbose="foo")
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invalidfilename", pixels8b, 255)
         self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invalidtype.bmp", pixels8b, 255)
