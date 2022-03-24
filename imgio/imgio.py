@@ -116,7 +116,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         _disallow(filetype == ".png" and maxval not in [255, 65535], "maxval must be 255 or 65535 for a PNG; was %d."%(maxval))
         _print(verbose, "Writing file %s "%(filespec), end='')
         formatstr = "jpg" if filetype == ".insp" else filetype[1:]
-        _reraise(lambda: _imread.imsave(filespec, image, formatstr=formatstr))
+        _reraise(lambda: _imread.imsave(filespec, image, formatstr=formatstr, opts={'jpeg:quality': 95}))
         h, w = image.shape[:2]
         c = image.shape[2] if image.ndim > 2 else 1
         _print(verbose, "(w=%d, h=%d, c=%d, maxval=%d)"%(w, h, c, maxval))
