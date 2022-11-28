@@ -32,7 +32,7 @@ except ImportError:
 #
 ######################################################################################
 
-RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".insp", ".raw"]
+RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".insp", ".npy", ".raw"]
 RO_FORMATS = RW_FORMATS + [".exr", ".bmp"]
 
 def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, verbose=False):
@@ -54,6 +54,9 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
         _enforce(isinstance(width, int) and width >= 1, "width must be an integer >= 1; was %s"%(repr(width)))
         _enforce(isinstance(height, int) and height >= 1, "height must be an integer >= 1; was %s"%(repr(height)))
         frame, maxval = _reraise(lambda: _read_raw(filespec, width, height, bpp, raw_header_size, verbose=verbose))
+        return frame, maxval
+    if filetype == ".npy":
+        frame, maxval = _reraise(lambda: _read_npy(filespec, verbose))
         return frame, maxval
     if filetype == ".pfm":
         frame, scale = _reraise(lambda: pfm.read(filespec, verbose))
@@ -82,7 +85,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     """
     Writes the given image to the given file, returns nothing. Grayscale images
     are expected to be provided as NumPy arrays with shape H x W, color images
-    with shape H x W x 3. Metadata, alpha channels, etc. are not supported.
+    with shape H x W x C. Metadata, alpha channels, etc. are not supported.
     """
     ImageIOError.error_message_prefix = "Failed to write %s: "%(repr(filespec))
     _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
@@ -93,8 +96,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     _enforce(isinstance(maxval, int) or image.dtype.char in "efd", "maxval must be an integer in [1, 65535]; was %s."%(repr(maxval)))
     _enforce(1 <= maxval <= 65535 or image.dtype.char in "efd", "maxval must be an integer in [1, 65535]; was %s."%(repr(maxval)))
     _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)))
-    _disallow(image.ndim not in [2, 3], "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
-    _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
+    _disallow(image.ndim not in [2, 3], "image.shape must be (m, n) or (m, n, c); was %s."%(str(image.shape)))
     _disallow(maxval > 255 and image.dtype == np.uint8, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
     _disallow(maxval <= 255 and image.dtype == np.uint16, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
     filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
@@ -107,11 +109,15 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         _enforce(image.ndim == 2, "image.shape must be (m, n) for a Bayer RAW; was %s."%(str(image.shape)))
         _reraise(lambda: _write_raw(filespec, image, maxval, packed, verbose))
     elif filetype == ".pfm":
+        _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
         _enforce(maxval >= 0.0, "maxval (scale) must be non-negative; was %s."%(repr(maxval)))
         _reraise(lambda: pfm.write(filespec, image, maxval, little_endian=True, verbose=verbose))
+    elif filetype == ".npy":
+        _reraise(lambda: _write_npy(filespec, image, verbose))
     elif filetype in [".pnm", ".pgm", ".ppm"]:
         _reraise(lambda: pnm.write(filespec, image, maxval, verbose))
     elif filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
+        _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
         _disallow(filetype in [".jpg", ".jpeg"] and maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
         _disallow(filetype == ".png" and maxval not in [255, 65535], "maxval must be 255 or 65535 for a PNG; was %d."%(maxval))
         _print(verbose, "Writing file %s "%(filespec), end='')
@@ -181,13 +187,29 @@ def _exif_rotate(img, filespec):
         img = np.rot90(img, rot90_ccw_steps)  # 0/90/180/270 CCW
     return img
 
-def _read_exr(filespec, verbose=True):
+def _read_exr(filespec, verbose=False):
     exr = pyexr.open(filespec)
     data = exr.get()
     maxval = np.max(data)
     _print(verbose, "Reading OpenEXR file %s "%(filespec), end='')
     _print(verbose, "(w=%d, h=%d, c=%d, %s)"%(exr.width, exr.height, len(exr.channels), data.dtype))
     return data, maxval
+
+def _read_npy(filespec, verbose=False):
+    data = np.load(filespec)
+    _enforce(data.ndim == 3, "NumPy file %s image has unsupported shape %s"%(filespec, str(data.shape)))
+    maxval = np.max(data)
+    h, w, ch = data.shape
+    _print(verbose, "Reading NumPy file %s "%(filespec), end='')
+    _print(verbose, "(w=%d, h=%d, c=%d, %s)"%(w, h, ch, data.dtype))
+    return data, maxval
+
+def _write_npy(filespec, image, verbose=False):
+    _enforce(image.ndim == 3, "image.shape must be (m, n, c) for .npy; was %s."%(str(image.shape)))
+    h, w, ch = image.shape
+    if verbose:
+        print("Writing file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, image.dtype))
+    np.save(filespec, image)
 
 def _read_raw(filespec, width, height, bpp, header_size=None, verbose=False):
     # Warning: hardcoded endianness (x86)
@@ -401,6 +423,21 @@ class _TestImgIo(unittest.TestCase):
             self.assertEqual(result.shape, shape)
             self.assertTrue(np.allclose(result, pixels))
             os.remove(tempfile)
+
+    def test_npy(self):
+        for dt in ["float16", "float32"]:
+            for shape in [(1, 1, 2), (1, 1, 9), (7, 11, 3), (9, 13, 31), (123, 321, 3)]:
+                scale = 3.141
+                tempfile = "imgio.test.npy"
+                print("Testing NPY reading & writing in %s mode, shape=%s..."%(dt, repr(shape)))
+                pixels = np.random.random(shape)  # float64 pixels
+                pixels = pixels.astype(dt)  # convert to float16/32
+                imwrite(tempfile, pixels, maxval=scale, verbose=False)
+                result, resscale = imread(tempfile, verbose=False)
+                self.assertEqual(result.dtype, dt)
+                self.assertEqual(result.shape, shape)
+                self.assertTrue(np.allclose(result, pixels))
+                os.remove(tempfile)
 
     def test_exif(self):
         print("Testing EXIF orientation handling...")
