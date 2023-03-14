@@ -15,7 +15,17 @@ import unittest                   # standard library
 import piexif                     # pip install piexif
 import numpy as np                # pip install numpy
 import imread as _imread          # pip install imread
-import pyexr                      # pip install pyexr
+
+
+try:
+    import pyexr                  # pip install pyexr + apt install libopenexr-dev
+except ModuleNotFoundError:
+    print("imgio: OpenEXR (.exr) support disabled. To enable:")
+    print("  sudo apt install libopenexr-dev")
+    print("  pip install pyexr")
+    print()
+    pyexr = None
+
 
 try:
     # package mode
@@ -62,6 +72,7 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
         frame, scale = _reraise(lambda: pfm.read(filespec, verbose))
         return frame, scale
     if filetype == ".exr":
+        _enforce(pyexr is not None, "OpenEXR support not installed")
         frame, maxval = _reraise(lambda: _read_exr(filespec, verbose))
         return frame, maxval
     if filetype in [".pnm", ".pgm", ".ppm"]:
