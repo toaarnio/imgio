@@ -1,0 +1,56 @@
+target-version = "py38"
+
+line-length = 150
+
+select = ["ALL"]
+ignore = [
+
+       # ignore complete rule packages [common]
+
+       "D",  # pydocstyle
+       "FBT",  # flake8-boolean-trap
+       "ANN",  # flake8-annotations
+       "ERA",  # eradicate
+       "PD",  # pandas-vet
+       "PT",  # flake8-pytest-style
+       "T20",  # flake8-print
+       "PTH",  # flake8-use-pathlib
+
+       # ignore individual errors & warnings [common]
+
+       "E731",  # pycodestyle: lambda-assignment
+       "E741",  # pycodestyle: ambiguous-variable-name
+       "F405",  # pyflakes: import-star-usage
+       "F541",  # pyflakes: f-string-missing-placeholders
+       "I001",  # isort: unsorted-imports
+       "Q000",  # flake8-quotes: bad-quotes-inline-string
+       "S101",  # flake8-bandit: use of assert detected
+       "EM101",  # flake8-errmsg: raw-string-in-exception
+       "EM102",  # flake8-errmsg: f-string-in-exception
+       "RET503",  # flake8-return: implicit-return
+       "RET504",  # flake8-return: unnecessary-assign
+       "RET505",  # flake8-return: superfluous-else-return
+       "TRY003",  # tryceratops: raise-vanilla-args
+       "RUF005",  # ruff-specific-rules: unpack-instead-of-concatenating-to-collection-literal
+       "PLR2004",  # refactor: magic-value-comparison
+
+       # ignore individual errors & warnings [this project]
+
+       "N806",  # pep8-naming: non-lowercase-variable-in-function
+       "UP031",  # pyupgrade: printf-string-formatting
+
+       ]
+
+
+[pylint]
+
+max-args = 8  # default: 5
+max-statements = 60  # default: 50
+
+
+[per-file-ignores]
+
+"__init__.py" = [
+       "E402",  # pycodestyle: module-import-not-at-top-of-file
+       "F403",  # pyflakes: import-star
+       ]
