@@ -8,6 +8,7 @@ Supports PGM / PPM / PNM / PFM / PNG / BMP / JPG / INSP / TIFF, plus EXR / BMP /
 
 **Installing on Linux:**
 ```
+sudo apt install libopenexr-dev
 pip install imgio
 ```
 
@@ -15,20 +16,18 @@ pip install imgio
 ```
 pip install pipwin
 pipwin install imread
+pipwin install pyexr
 pip install imgio
 ```
 
 **Building & installing from source:**
 ```
-rm -rf build/ dist/
-python setup.py build sdist test
-pip uninstall imgio
-pip install --user dist/*.tar.gz
+git clone <this-repository>
+cd <this-repository>
+make install
 ```
 
 **Releasing to PyPI:**
 ```
-pip install --user --upgrade setuptools wheel twine
-python setup.py sdist bdist_wheel
-twine upload dist/*
+make release
 ```
