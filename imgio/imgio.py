@@ -162,7 +162,7 @@ def _disallow(expression, error_message_if_true):
 def _reraise(func):
     try:
         return func()
-    except Exception as e:
+    except Exception as e:  # noqa: blind-except
         raise ImageIOError("%s"%(repr(sys.exc_info()[1]))) from e
 
 def _print(verbose, *args, **kwargs):
@@ -247,7 +247,7 @@ def _write_raw(filespec, image, _maxval, _pack=False, _verbose=False):
 
 class _TestImgIo(unittest.TestCase):
 
-    def assertRaisesRegexp(self, expected_exception, expected_regex, *args, **kwargs):
+    def assertRaisesRegex(self, expected_exception, expected_regex, *args, **kwargs):  # noqa: invalid-function-name
         """
         Checks that the correct type of exception is raised, and that the exception
         message matches the given regular expression. Also prints out the message
@@ -255,14 +255,14 @@ class _TestImgIo(unittest.TestCase):
         """
         try:  # check the type of exception first
             unittest.TestCase.assertRaises(self, expected_exception, *args, **kwargs)
-        except Exception as e:
+        except Exception as e:  # noqa: blind-except
             raised_name = sys.exc_info()[0].__name__
             expected_name = expected_exception.__name___
             errstr = "Expected %s with a message matching '%s', got %s."%(expected_name, expected_regex, raised_name)
             print("   FAIL: %s"%(errstr))
             raise AssertionError(errstr) from e
         try:  # then check the exception message
-            assertRaisesRegex = getattr(unittest.TestCase, "assertRaisesRegex", unittest.TestCase.assertRaisesRegexp)
+            assertRaisesRegex = getattr(unittest.TestCase, "assertRaisesRegex", unittest.TestCase.assertRaisesRegex)
             assertRaisesRegex(self, expected_exception, expected_regex, *args, **kwargs)  # python 2 vs. 3 compatibility
             try:  # print the exception message also when everything is OK
                 func = args[0]
@@ -274,8 +274,7 @@ class _TestImgIo(unittest.TestCase):
             print("   FAIL: %s"%(e))
             raise
 
-    def test_exceptions(self):
-        # pylint: disable=too-many-statements
+    def test_exceptions(self):  # noqa: too-many-statements
         print("Testing exception handling...")
         shape = (7, 11, 3)
         pixels = np.random.random(shape).astype(np.float32)
@@ -288,54 +287,54 @@ class _TestImgIo(unittest.TestCase):
         os.rename("imgio.test.ppm", "invalidformat.pfm")
         os.rename("imgio.test.png", "invalidformat.jpg")
         os.rename("imgio.test.jpg", "invalidformat.ppm")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, None)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, 0xdeadbeef)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, ".ppm")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidfilename")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting/")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting/.ppm")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting/invalidfilename")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.jpg")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.png")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.ppm")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.pgm")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.pfm")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "nonexisting.bmp")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidformat.pfm")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidformat.jpg")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read", imread, "invalidformat.ppm")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to read.*verbose", imread, "validimage.ppm", verbose="foo")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invalidfilename", pixels8b, 255)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invalidtype.bmp", pixels8b, 255)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invaliddepth.ppm", pixels16b, 255)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invaliddepth.png", pixels16b, 255)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invaliddepth.png", pixels8b, 254)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invaliddepth.jpg", pixels8b, 254)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invaliddepth.png", pixels16b, 1023)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "invaliddepth.ppm", pixels8b, 1023)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, None, pixels8b, 255)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, 0xdeadbeef, pixels8b, 255)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "", pixels8b, 255)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, ".ppm", pixels8b, 255)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "nonexisting/.ppm", pixels8b, 255)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "nonexisting/foo.ppm", pixels8b, 255)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", None)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 0), np.uint8))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7,), np.uint8))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 7, 1), np.uint8))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 7, 2), np.uint8))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 7, 4), np.uint8))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 7, 3, 1), np.uint8))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(bool))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(np.float16))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(np.float64))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype('>f4'))
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.pfm", pixels, -1.0)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write", imwrite, "imgio.test.pfm", pixels, "255")
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write.*shape", imwrite, "imgio.test.raw", pixels8b, 255)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write.*supported", imwrite, "imgio.test.raw", pixels8b, 255, packed=True)
-        self.assertRaisesRegexp(ImageIOError, "^Failed to write.*verbose", imwrite, "imgio.test.ppm", pixels8b, 255, verbose=0)
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, None)
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, 0xdeadbeef)
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, ".ppm")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "invalidfilename")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting/")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting/.ppm")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting/invalidfilename")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting.jpg")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting.png")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting.ppm")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting.pgm")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting.pfm")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting.bmp")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "invalidformat.pfm")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "invalidformat.jpg")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "invalidformat.ppm")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read.*verbose", imread, "validimage.ppm", verbose="foo")
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invalidfilename", pixels8b, 255)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invalidtype.bmp", pixels8b, 255)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invaliddepth.ppm", pixels16b, 255)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invaliddepth.png", pixels16b, 255)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invaliddepth.png", pixels8b, 254)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invaliddepth.jpg", pixels8b, 254)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invaliddepth.png", pixels16b, 1023)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invaliddepth.ppm", pixels8b, 1023)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, None, pixels8b, 255)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, 0xdeadbeef, pixels8b, 255)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "", pixels8b, 255)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, ".ppm", pixels8b, 255)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "nonexisting/.ppm", pixels8b, 255)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "nonexisting/foo.ppm", pixels8b, 255)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", None)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 0), np.uint8))
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7,), np.uint8))
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 7, 1), np.uint8))
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 7, 2), np.uint8))
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 7, 4), np.uint8))
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", np.zeros((7, 7, 3, 1), np.uint8))
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(bool))
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(np.float16))
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(np.float64))
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype('>f4'))
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.pfm", pixels, -1.0)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.pfm", pixels, "255")
+        self.assertRaisesRegex(ImageIOError, "^Failed to write.*shape", imwrite, "imgio.test.raw", pixels8b, 255)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write.*supported", imwrite, "imgio.test.raw", pixels8b, 255, packed=True)
+        self.assertRaisesRegex(ImageIOError, "^Failed to write.*verbose", imwrite, "imgio.test.ppm", pixels8b, 255, verbose=0)
         os.remove("invalidformat.pfm")
         os.remove("invalidformat.jpg")
         os.remove("invalidformat.ppm")
