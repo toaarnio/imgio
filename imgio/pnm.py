@@ -30,8 +30,7 @@ def read(filespec, verbose=False):
             numch = 3 if typestr == b"P6" else 1
             shape = (height, width, numch) if typestr == b"P6" else (height, width)
             if verbose:
-                print("Reading file %s "%(filespec), end='')
-                print("(w=%d, h=%d, c=%d, maxval=%d)"%(width, height, numch, maxval))
+                print("Reading file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, width, height, numch, maxval))
             dtype = ">u2" if maxval > 255 else np.uint8
             pixels = np.frombuffer(buf, dtype, count=width * height * numch, offset=len(header))
             pixels = pixels.reshape(shape).astype(np.uint8 if maxval <= 255 else np.uint16)
@@ -61,8 +60,7 @@ def write(filespec, image, maxval, verbose=False):
     numch = 3 if image.ndim == 3 else 1
     image = image.byteswap() if maxval > 255 else image
     if verbose:
-        print("Writing file %s "%(filespec), end='')
-        print("(w=%d, h=%d, c=%d, maxval=%d)"%(width, height, numch, maxval))
+        print("Writing file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, width, height, numch, maxval))
     with open(filespec, "wb") as f:
         typestr = "P6" if numch == 3 else "P5"
         f.write(("%s %d %d %d\n"%(typestr, width, height, maxval)).encode("utf-8"))

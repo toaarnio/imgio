@@ -19,12 +19,16 @@ def read(filename, verbose=False):
     are supported, as well as both byte orders.
     """
     with open(filename, 'rb') as f:
-        if verbose:
-            print("Reading file %s "%(filename), end='')
         buf = f.read()
-        parsed = parse(buf, verbose)
+        parsed = parse(buf)
         if parsed is not None:
             pixels, scale = parsed
+            if verbose:
+                maxx = np.max(pixels)
+                h, w = pixels.shape[:2]
+                ch = pixels.shape[2] if pixels.ndim == 3 else 1
+                infostr = "(w=%d, h=%d, c=%d, scale=%.2f, max=%.2f)"%(w, h, ch, scale, maxx)
+                print("Reading file %s %s"%(filename, infostr))
             return pixels, scale
         raise RuntimeError("File %s is not a valid PFM file."%(filename))
 
@@ -41,7 +45,7 @@ def write(filename, pixels, scale=1.0, little_endian=True, verbose=False):
         pfm_bytearray = generate(pixels, scale, little_endian, verbose)
         f.write(pfm_bytearray)
 
-def parse(pfm_bytearray, verbose=False):
+def parse(pfm_bytearray):
     """
     Converts the given byte array, representing the contents of a PFM file, into
     a 1-channel or 3-channel numpy ndarray with float32 elements. Returns a tuple
@@ -60,9 +64,6 @@ def parse(pfm_bytearray, verbose=False):
         f32 = np.frombuffer(pfm_bytearray, dtype=dtype, count=width * height * numchannels, offset=len(header))
         f32 = f32.reshape((height, width) if numchannels == 1 else (height, width, 3))
         f32 = f32.astype(np.float32)
-        if verbose:
-            maxx = np.max(f32)
-            print("(w=%d, h=%d, c=%d, scale=%.2f, max=%.2f, byteorder='%s')"%(width, height, numchannels, scale, maxx, dtype[0]))
         return f32, scale
     return None
 
