@@ -79,7 +79,6 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
         frame, maxval = _reraise(lambda: pnm.read(filespec, verbose))
         return frame, maxval
     if filetype in [".png", ".bmp", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
-        _print(verbose, "Reading file %s "%(filespec), end='')
         formatstr = "jpg" if filetype == ".insp" else filetype[1:]
         frame = _reraise(lambda: _imread.imread(filespec, formatstr=formatstr))
         maxval = 255 if frame.dtype == np.uint8 else 65535
@@ -88,7 +87,7 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
         frame = _reraise(lambda: _exif_rotate(frame, filespec))
         h, w = frame.shape[:2]
         c = frame.shape[2] if frame.ndim > 2 else 1
-        _print(verbose, "(w=%d, h=%d, c=%d, maxval=%d)"%(w, h, c, maxval))
+        _print(verbose, "Reading file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
         return frame, maxval
     raise ImageIOError("unrecognized file type `%s`."%(filetype))
 
@@ -131,12 +130,11 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
         _disallow(filetype in [".jpg", ".jpeg"] and maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
         _disallow(filetype == ".png" and maxval not in [255, 65535], "maxval must be 255 or 65535 for a PNG; was %d."%(maxval))
-        _print(verbose, "Writing file %s "%(filespec), end='')
         formatstr = "jpg" if filetype == ".insp" else filetype[1:]
         _reraise(lambda: _imread.imsave(filespec, image, formatstr=formatstr, opts={'jpeg:quality': 95}))
         h, w = image.shape[:2]
         c = image.shape[2] if image.ndim > 2 else 1
-        _print(verbose, "(w=%d, h=%d, c=%d, maxval=%d)"%(w, h, c, maxval))
+        _print(verbose, "Writing file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
     else:
         raise ImageIOError("unrecognized file type `%s`."%(filetype))
 
@@ -202,8 +200,8 @@ def _read_exr(filespec, verbose=False):
     exr = pyexr.open(filespec)
     data = exr.get()
     maxval = np.max(data)
-    _print(verbose, "Reading OpenEXR file %s "%(filespec), end='')
-    _print(verbose, "(w=%d, h=%d, c=%d, %s)"%(exr.width, exr.height, len(exr.channels), data.dtype))
+    w, h, ch, dt = exr.width, exr.height, len(exr.channels), data.dtype
+    _print(verbose, "Reading OpenEXR file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, dt))
     return data, maxval
 
 def _read_npy(filespec, verbose=False):
@@ -211,8 +209,7 @@ def _read_npy(filespec, verbose=False):
     _enforce(data.ndim == 3, "NumPy file %s image has unsupported shape %s"%(filespec, str(data.shape)))
     maxval = np.max(data)
     h, w, ch = data.shape
-    _print(verbose, "Reading NumPy file %s "%(filespec), end='')
-    _print(verbose, "(w=%d, h=%d, c=%d, %s)"%(w, h, ch, data.dtype))
+    _print(verbose, "Reading NumPy file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, data.dtype))
     return data, maxval
 
 def _write_npy(filespec, image, verbose=False):
@@ -232,8 +229,8 @@ def _read_raw(filespec, width, height, bpp, header_size=None, verbose=False):
         packed = len(buf) < (width * height * wordsize)
         if header_size is None:
             header_size = len(buf) - (width * height * wordsize)
-        _print(verbose, "Reading raw Bayer file %s "%(filespec), end='')
-        _print(verbose, "(w=%d, h=%d, maxval=%d, header=%d, packed=%r)"%(width, height, maxval, header_size, packed))
+        fs, w, h, hdrsz = filespec, width, height, header_size
+        _print(verbose, "Reading raw Bayer file %s (w=%d, h=%d, maxval=%d, header=%d, packed=%r)"%(fs, w, h, maxval, hdrsz, packed))
         if not packed:
             dtype = "<u2" if bpp > 8 else np.uint8
             pixels = np.frombuffer(buf, dtype, count=width * height, offset=header_size)
