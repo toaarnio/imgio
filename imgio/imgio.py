@@ -42,8 +42,8 @@ except ImportError:
 #
 ######################################################################################
 
-RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".insp", ".npy", ".raw"]
-RO_FORMATS = RW_FORMATS + [".exr", ".bmp"]
+RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".insp", ".npy", ".raw", ".exr"]
+RO_FORMATS = RW_FORMATS + [".bmp"]
 
 def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, verbose=False):
     """
@@ -122,6 +122,9 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
         _enforce(maxval >= 0.0, "maxval (scale) must be non-negative; was %s."%(repr(maxval)))
         _reraise(lambda: pfm.write(filespec, image, maxval, little_endian=True, verbose=verbose))
+    elif filetype == ".exr":
+        _enforce(pyexr is not None, "OpenEXR support not installed")
+        _reraise(lambda: _write_exr(filespec, image, verbose))
     elif filetype == ".npy":
         _reraise(lambda: _write_npy(filespec, image, verbose))
     elif filetype in [".pnm", ".pgm", ".ppm"]:
@@ -198,11 +201,20 @@ def _exif_rotate(img, filespec):
 
 def _read_exr(filespec, verbose=False):
     exr = pyexr.open(filespec)
-    data = exr.get()
+    precision = list(exr.channel_precision.values())[0]
+    data = exr.get(precision=precision)
     maxval = np.max(data)
     w, h, ch, dt = exr.width, exr.height, len(exr.channels), data.dtype
     _print(verbose, "Reading OpenEXR file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, dt))
     return data, maxval
+
+def _write_exr(filespec, image, verbose=False):
+    h, w = image.shape[:2]
+    ch = image.shape[2] if image.ndim == 3 else 1
+    dt = pyexr.HALF if image.dtype == np.float16 else pyexr.FLOAT
+    channels = [f"ch{idx:02d}" for idx in range(ch)] if ch >= 5 else None
+    pyexr.write(filespec, image, precision=dt, channel_names=channels)
+    _print(verbose, "Writing OpenEXR file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, image.dtype))
 
 def _read_npy(filespec, verbose=False):
     data = np.load(filespec)
@@ -215,8 +227,7 @@ def _read_npy(filespec, verbose=False):
 def _write_npy(filespec, image, verbose=False):
     _enforce(image.ndim == 3, "image.shape must be (m, n, c) for .npy; was %s."%(str(image.shape)))
     h, w, ch = image.shape
-    if verbose:
-        print("Writing file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, image.dtype))
+    _print(verbose, "Writing NumPy file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, image.dtype))
     np.save(filespec, image)
 
 def _read_raw(filespec, width, height, bpp, header_size=None, verbose=False):
@@ -308,6 +319,7 @@ class _TestImgIo(unittest.TestCase):
         self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting.ppm")
         self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting.pgm")
         self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting.pfm")
+        self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting.exr")
         self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "nonexisting.bmp")
         self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "invalidformat.pfm")
         self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "invalidformat.jpg")
@@ -433,10 +445,25 @@ class _TestImgIo(unittest.TestCase):
 
     def test_npy(self):
         for dt in ["float16", "float32"]:
-            for shape in [(1, 1, 2), (1, 1, 9), (7, 11, 3), (9, 13, 31), (123, 321, 3)]:
+            for shape in [(1, 1, 1), (1, 1, 2), (1, 1, 9), (7, 11, 3), (9, 13, 31), (123, 321, 3)]:
                 scale = 3.141
                 tempfile = "imgio.test.npy"
                 print("Testing NPY reading & writing in %s mode, shape=%s..."%(dt, repr(shape)))
+                pixels = np.random.random(shape)  # float64 pixels
+                pixels = pixels.astype(dt)  # convert to float16/32
+                imwrite(tempfile, pixels, maxval=scale, verbose=False)
+                result, resscale = imread(tempfile, verbose=False)
+                self.assertEqual(result.dtype, dt)
+                self.assertEqual(result.shape, shape)
+                self.assertTrue(np.allclose(result, pixels))
+                os.remove(tempfile)
+
+    def test_exr(self):
+        for dt in ["float16", "float32"]:
+            for shape in [(1, 1, 1), (1, 1, 2), (1, 1, 9), (7, 11, 3), (9, 13, 31), (123, 321, 3)]:
+                scale = 3.141
+                tempfile = "imgio.test.exr"
+                print("Testing EXR reading & writing in %s mode, shape=%s..."%(dt, repr(shape)))
                 pixels = np.random.random(shape)  # float64 pixels
                 pixels = pixels.astype(dt)  # convert to float16/32
                 imwrite(tempfile, pixels, maxval=scale, verbose=False)
@@ -463,13 +490,13 @@ class _TestImgIo(unittest.TestCase):
                 self.assertEqual(refimg.shape, testimg.shape)
                 self.assertGreater(np.sum(epsdiff), 0.5 * epsdiff.size)
 
-    def test_exr(self):
+    def test_exr_read(self):
         print("Testing EXR reading...")
         thispath = os.path.dirname(os.path.abspath(__file__))
         filespec = os.path.join(thispath, "test-images", "GrayRampsDiagonal.exr")
         img, maxval = imread(filespec)
         self.assertEqual(img.shape, (800, 800, 1))
-        self.assertEqual(img.dtype, np.float32)
+        self.assertEqual(img.dtype, np.float16)
         self.assertEqual(maxval, np.max(img))
 
     def test_raw(self):
