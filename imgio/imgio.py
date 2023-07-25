@@ -196,24 +196,6 @@ def _print(verbose, *args, **kwargs):
     if verbose:
         print(*args, **kwargs)
 
-def _exif_rotate(img, filespec):
-    try:
-        orientation = 1
-        exif_dict = piexif.load(filespec).pop("0th")
-        exif_orientation = exif_dict.get(piexif.ImageIFD.Orientation)
-        orientation = 1 if exif_orientation is None else exif_orientation
-    except piexif.InvalidImageDataError:
-        pass
-    exif_to_rot90 = {1: 0, 2: 0, 3: 2, 4: 0, 5: 1, 6: 3, 7: 3, 8: 1}
-    if orientation in [2, 5, 7]:
-        img = np.fliplr(img)
-    if orientation in [4]:
-        img = np.flipud(img)
-    if orientation in exif_to_rot90:
-        rot90_ccw_steps = exif_to_rot90[orientation]
-        img = np.rot90(img, rot90_ccw_steps)  # 0/90/180/270 CCW
-    return img
-
 def _read_exr(filespec, verbose=False):
     exr = pyexr.open(filespec)
     precision = list(exr.channel_precision.values())[0]
