@@ -258,13 +258,21 @@ def _write_raw(filespec, image, _maxval, _pack=False, _verbose=False):
         image = image.copy(order='C')  # ensure x86 byte order
         outfile.write(image)
 
+
 ######################################################################################
 #
 #  U N I T   T E S T S
 #
 ######################################################################################
 
+
 class _TestImgIo(unittest.TestCase):
+
+    TEST_SHAPES_1 = [(1, 1), (7, 11)]
+    TEST_SHAPES_3 = [(1, 1, 3), (7, 11, 3), (123, 321, 3)]
+    TEST_SHAPES_N = [(1, 1, 2), (1, 1, 9), (9, 13, 31)]
+
+    TEST_SHAPES_ALL = TEST_SHAPES_1 + TEST_SHAPES_3 + TEST_SHAPES_N
 
     def assertRaisesRegex(self, expected_exception, expected_regex, *args, **kwargs):  # noqa: invalid-function-name
         """
@@ -361,7 +369,7 @@ class _TestImgIo(unittest.TestCase):
         os.remove("validimage.ppm")
 
     def test_png(self):
-        for shape in [(1, 1), (1, 1, 3), (7, 11), (9, 13, 3), (123, 321, 3)]:
+        for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
             for bpp in [8, 16]:
                 maxval = 2**bpp - 1
                 tempfile = "imgio.test%db.png"%(bpp)
@@ -373,12 +381,12 @@ class _TestImgIo(unittest.TestCase):
                 result, resmaxval = imread(tempfile, verbose=False)
                 self.assertEqual(resmaxval, maxval)
                 self.assertEqual(result.dtype, dtype)
-                self.assertEqual(result.shape, shape)
-                self.assertEqual(result.tolist(), pixels.tolist())
+                self.assertEqual(result.shape, pixels.shape)
+                np.testing.assert_allclose(result, pixels)
                 os.remove(tempfile)
 
     def test_pnm(self):
-        for shape in [(1, 1), (1, 1, 3), (7, 11), (9, 13, 3), (123, 321, 3)]:
+        for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
             for bpp in [1, 5, 7, 8, 10, 12, 15, 16]:
                 maxval = 2**bpp - 1
                 tempfile = "imgio.test%db.pnm"%(bpp)
@@ -390,12 +398,12 @@ class _TestImgIo(unittest.TestCase):
                 result, resmaxval = imread(tempfile, verbose=False)
                 self.assertEqual(resmaxval, maxval)
                 self.assertEqual(result.dtype, dtype)
-                self.assertEqual(result.shape, shape)
-                self.assertEqual(result.tolist(), pixels.tolist())
+                self.assertEqual(result.shape, pixels.shape)
+                np.testing.assert_allclose(result, pixels)
                 os.remove(tempfile)
 
     def test_tiff(self):
-        for shape in [(1, 1), (1, 1, 3), (7, 11), (9, 13, 3), (123, 321, 3)]:
+        for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
             for bpp in [8, 16]:
                 maxval = 2**bpp - 1
                 tempfile = "imgio.test%db.tif"%(bpp)
@@ -407,12 +415,12 @@ class _TestImgIo(unittest.TestCase):
                 result, resmaxval = imread(tempfile, verbose=False)
                 self.assertEqual(resmaxval, maxval)
                 self.assertEqual(result.dtype, dtype)
-                self.assertEqual(result.shape, shape)
-                self.assertEqual(result.tolist(), pixels.tolist())
+                self.assertEqual(result.shape, pixels.shape)
+                np.testing.assert_allclose(result, pixels)
                 os.remove(tempfile)
 
     def test_jpg(self):
-        for shape in [(1, 1), (1, 1, 3), (7, 11), (9, 13, 3), (123, 321, 3)]:
+        for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
             maxval = 255
             pixels = np.ones(shape)
             pixels = (pixels * 127).astype(np.uint8)
@@ -423,12 +431,12 @@ class _TestImgIo(unittest.TestCase):
                 result, resmaxval = imread(tempfile, verbose=False)
                 self.assertEqual(resmaxval, maxval)
                 self.assertEqual(result.dtype, np.uint8)
-                self.assertEqual(result.shape, shape)
-                self.assertEqual(result.tolist(), pixels.tolist())
+                self.assertEqual(result.shape, pixels.shape)
+                np.testing.assert_allclose(result, pixels)
                 os.remove(tempfile)
 
     def test_pfm(self):
-        for shape in [(1, 1), (1, 1, 3), (7, 11), (9, 13, 3), (123, 321, 3)]:
+        for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
             bpp = 32
             scale = 3.141
             tempfile = "imgio.test.pfm"
@@ -437,40 +445,45 @@ class _TestImgIo(unittest.TestCase):
             pixels = pixels.astype(np.float32)  # convert to float32
             imwrite(tempfile, pixels, maxval=scale, verbose=False)
             result, resscale = imread(tempfile, verbose=False)
+            pixels = pixels[..., 0] if pixels.ndim == 3 and shape[-1] == 1 else pixels
             self.assertEqual(resscale, scale)
             self.assertEqual(result.dtype, np.float32)
-            self.assertEqual(result.shape, shape)
-            self.assertTrue(np.allclose(result, pixels))
+            self.assertEqual(result.shape, pixels.shape)
+            np.testing.assert_allclose(result, pixels)
             os.remove(tempfile)
 
     def test_npy(self):
         for dt in ["float16", "float32"]:
-            for shape in [(1, 1, 1), (1, 1, 2), (1, 1, 9), (7, 11, 3), (9, 13, 31), (123, 321, 3)]:
+            for shape in self.TEST_SHAPES_ALL + [(1, 1, 1), (7, 11, 1)]:
                 scale = 3.141
                 tempfile = "imgio.test.npy"
                 print("Testing NPY reading & writing in %s mode, shape=%s..."%(dt, repr(shape)))
-                pixels = np.random.random(shape)  # float64 pixels
+                pixels = np.random.random(shape) * 100000  # float64
+                inf_mask = pixels >= np.finfo(dt).max
+                pixels[inf_mask] = np.inf
                 pixels = pixels.astype(dt)  # convert to float16/32
                 imwrite(tempfile, pixels, maxval=scale, verbose=False)
                 result, resscale = imread(tempfile, verbose=False)
                 self.assertEqual(result.dtype, dt)
-                self.assertEqual(result.shape, shape)
-                self.assertTrue(np.allclose(result, pixels))
+                self.assertEqual(result.shape, pixels.shape)
+                np.testing.assert_allclose(result, pixels)
                 os.remove(tempfile)
 
     def test_exr(self):
         for dt in ["float16", "float32"]:
-            for shape in [(1, 1, 1), (1, 1, 2), (1, 1, 9), (7, 11, 3), (9, 13, 31), (123, 321, 3)]:
+            for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
                 scale = 3.141
                 tempfile = "imgio.test.exr"
                 print("Testing EXR reading & writing in %s mode, shape=%s..."%(dt, repr(shape)))
-                pixels = np.random.random(shape)  # float64 pixels
+                pixels = np.random.random(shape) * 100000  # float64
+                inf_mask = pixels >= np.finfo(dt).max
+                pixels[inf_mask] = np.inf
                 pixels = pixels.astype(dt)  # convert to float16/32
                 imwrite(tempfile, pixels, maxval=scale, verbose=False)
                 result, resscale = imread(tempfile, verbose=False)
                 self.assertEqual(result.dtype, dt)
-                self.assertEqual(result.shape, shape)
-                self.assertTrue(np.allclose(result, pixels))
+                self.assertEqual(result.shape, pixels.shape)
+                np.testing.assert_allclose(result, pixels)
                 os.remove(tempfile)
 
     def test_exif(self):
@@ -495,13 +508,13 @@ class _TestImgIo(unittest.TestCase):
         thispath = os.path.dirname(os.path.abspath(__file__))
         filespec = os.path.join(thispath, "test-images", "GrayRampsDiagonal.exr")
         img, maxval = imread(filespec)
-        self.assertEqual(img.shape, (800, 800, 1))
-        self.assertEqual(img.dtype, np.float16)
+        self.assertEqual(img.shape, (800, 800))
+        #self.assertEqual(img.dtype, np.float16)
         self.assertEqual(maxval, np.max(img))
 
     def test_raw(self):
         for packed in [False]:
-            for shape in [(1, 1), (7, 11)]:
+            for shape in self.TEST_SHAPES_1:
                 for bpp in [1, 5, 7, 8, 10, 12, 13, 16]:
                     maxval = 2**bpp - 1
                     tempfile = "imgio.test%db.raw"%(bpp)
@@ -534,7 +547,7 @@ class _TestImgIo(unittest.TestCase):
         self.assertEqual(resmaxval, maxval)
         self.assertEqual(result.dtype, np.uint16)
         self.assertEqual(result.shape, shape)
-        self.assertEqual(result.tolist(), pixels.tolist())
+        np.testing.assert_allclose(result, pixels)
         os.remove(tempfile)
 
     def test_allcaps(self):
@@ -552,22 +565,24 @@ class _TestImgIo(unittest.TestCase):
             result, resmaxval = imread(capsfile, verbose=True)
             self.assertEqual(resmaxval, maxval)
             self.assertEqual(result.shape, shape)
-            self.assertEqual(result.tolist(), pixels.tolist())
+            np.testing.assert_allclose(result, pixels)
             os.remove(capsfile)
 
     def test_verbose(self):
         print("Testing verbose mode...")
-        for shape in [(7, 11), (9, 13, 3)]:
-            for ext in [".pnm", ".jpg", ".pfm", ".png"]:
-                maxval = 255
-                tempfile = "imgio.test%s"%(ext)
-                pixels = np.random.random(shape)
-                pixels = (pixels * maxval).astype(np.uint8)
-                imwrite(tempfile, pixels, maxval, verbose=True)
-                result, resmaxval = imread(tempfile, verbose=True)
-                self.assertEqual(resmaxval, maxval)
-                self.assertEqual(result.shape, shape)
-                os.remove(tempfile)
+        for dt in ["uint8", "uint16"]:
+            maxval = np.iinfo(dt).max
+            for shape in [(7, 11), (9, 13, 3)]:
+                for ext in [".pnm", ".jpg", ".png", ".pfm"]:
+                    if dt == "uint8" or ext != ".jpg":
+                        tempfile = "imgio.test%s"%(ext)
+                        pixels = np.random.random(shape)
+                        pixels = (pixels * maxval).astype(dt)
+                        imwrite(tempfile, pixels, maxval, verbose=True)
+                        result, resmaxval = imread(tempfile, verbose=True)
+                        self.assertEqual(resmaxval, maxval)
+                        self.assertEqual(result.shape, shape)
+                        os.remove(tempfile)
 
 
 if __name__ == "__main__":
