@@ -220,15 +220,17 @@ def _write_exr(filespec, image, verbose=False):
 
 def _read_npy(filespec, verbose=False):
     data = np.load(filespec)
-    _enforce(data.ndim == 3, "NumPy file %s image has unsupported shape %s"%(filespec, str(data.shape)))
+    _enforce(data.ndim in [2, 3], "NumPy file %s image has unsupported shape %s"%(filespec, str(data.shape)))
     maxval = np.max(data)
-    h, w, ch = data.shape
+    h, w = data.shape[:2]
+    ch = data.shape[2] if data.ndim == 3 else 1
     _print(verbose, "Reading NumPy file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, data.dtype))
     return data, maxval
 
 def _write_npy(filespec, image, verbose=False):
-    _enforce(image.ndim == 3, "image.shape must be (m, n, c) for .npy; was %s."%(str(image.shape)))
-    h, w, ch = image.shape
+    _enforce(image.ndim in [2, 3], "image.shape must be or (m, n) or (m, n, c) for .npy; was %s."%(str(image.shape)))
+    h, w = image.shape[:2]
+    ch = image.shape[2] if image.ndim == 3 else 1
     _print(verbose, "Writing NumPy file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, image.dtype))
     np.save(filespec, image)
 
