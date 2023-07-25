@@ -204,6 +204,8 @@ def _read_exr(filespec, verbose=False):
     precision = list(exr.channel_precision.values())[0]
     data = exr.get(precision=precision)
     maxval = np.max(data)
+    must_squeeze = (data.ndim > 2 and data.shape[2] == 1)
+    data = data.squeeze(axis=2) if must_squeeze else data
     w, h, ch, dt = exr.width, exr.height, len(exr.channels), data.dtype
     _print(verbose, "Reading OpenEXR file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, dt))
     return data, maxval
