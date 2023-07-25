@@ -38,6 +38,7 @@ ignore = [
 
        "N806",  # pep8-naming: non-lowercase-variable-in-function
        "UP031",  # pyupgrade: printf-string-formatting
+       "C901",  # mccabe: complex-structure
 
        ]
 
