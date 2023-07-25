@@ -208,6 +208,23 @@ def _print(verbose, *args, **kwargs):
     if verbose:
         print(*args, **kwargs)
 
+def _read_exr_freeimage(filespec, verbose=False):
+    data = iio.imread(filespec, plugin="EXR-FI")
+    h, w = data.shape[:2]
+    ch = data.shape[2] if data.ndim == 3 else 1
+    dt = data.dtype
+    maxval = np.max(data)
+    _print(verbose, "Reading OpenEXR file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, dt))
+    return data, maxval
+
+def _write_exr_freeimage(filespec, image, verbose=False):
+    h, w = image.shape[:2]
+    ch = image.shape[2] if image.ndim == 3 else 1
+    fp32 = image.dtype in [np.float32, np.float64]
+    fmt = imageio.plugins.freeimage.IO_FLAGS.EXR_FLOAT if fp32 else None
+    iio.imwrite(filespec, image, plugin="EXR-FI", flags=fmt)
+    _print(verbose, "Writing OpenEXR file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, image.dtype))
+
 def _read_exr(filespec, verbose=False):
     exr = pyexr.open(filespec)
     precision = list(exr.channel_precision.values())[0]
