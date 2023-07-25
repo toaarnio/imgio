@@ -143,13 +143,13 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         _disallow(maxval not in [255, 65535], "maxval must be 255 or 65535 for JPEG/PNG/BMP/TIFF; was %d."%(maxval))
         if filetype in [".jpg", ".jpeg", ".insp"]:
             _disallow(maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
-            frame = _reraise(lambda: iio.imwrite(filespec, image, plugin="pillow", extension=".jpg", quality=95))
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="pillow", extension=".jpg", quality=95))
         if filetype in [".tiff", ".tif"]:
-            frame = _reraise(lambda: iio.imwrite(filespec, image, plugin="TIFF-FI"))
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="TIFF-FI"))
         if filetype in [".png"]:
-            frame = _reraise(lambda: iio.imwrite(filespec, image, plugin="PNG-FI"))
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="PNG-FI"))
         if filetype in [".bmp"]:
-            frame = _reraise(lambda: iio.imwrite(filespec, image, plugin="BMP-FI"))
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="BMP-FI"))
         h, w = image.shape[:2]
         c = image.shape[2] if image.ndim > 2 else 1
         _print(verbose, "Writing file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
