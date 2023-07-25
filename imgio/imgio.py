@@ -12,9 +12,9 @@ import os                         # standard library
 import sys                        # standard library
 import unittest                   # standard library
 
-import piexif                     # pip install piexif
 import numpy as np                # pip install numpy
-import imread as _imread          # pip install imread
+import imageio                    # pip install imageio
+import imageio.v3 as iio          # pip install imageio
 
 
 try:
@@ -36,14 +36,20 @@ except ImportError:
     import pnm                    # local import: pnm.py
     import pfm                    # local import: pfm.py
 
+
+imageio.plugins.freeimage.download()  # required for 16-bit PNG
+
+
 ######################################################################################
 #
 #  P U B L I C   A P I
 #
 ######################################################################################
 
+
 RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".insp", ".npy", ".raw", ".exr"]
 RO_FORMATS = RW_FORMATS + [".bmp"]
+
 
 def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, verbose=False):
     """
@@ -65,31 +71,34 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
         _enforce(isinstance(height, int) and height >= 1, "height must be an integer >= 1; was %s"%(repr(height)))
         frame, maxval = _reraise(lambda: _read_raw(filespec, width, height, bpp, raw_header_size, verbose=verbose))
         return frame, maxval
-    if filetype == ".npy":
+    elif filetype == ".npy":
         frame, maxval = _reraise(lambda: _read_npy(filespec, verbose))
         return frame, maxval
-    if filetype == ".pfm":
+    elif filetype == ".pfm":
         frame, scale = _reraise(lambda: pfm.read(filespec, verbose))
         return frame, scale
-    if filetype == ".exr":
+    elif filetype == ".exr":
         _enforce(pyexr is not None, "OpenEXR support not installed")
         frame, maxval = _reraise(lambda: _read_exr(filespec, verbose))
         return frame, maxval
-    if filetype in [".pnm", ".pgm", ".ppm"]:
+    elif filetype in [".pnm", ".pgm", ".ppm"]:
         frame, maxval = _reraise(lambda: pnm.read(filespec, verbose))
         return frame, maxval
-    if filetype in [".png", ".bmp", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
-        formatstr = "jpg" if filetype == ".insp" else filetype[1:]
-        frame = _reraise(lambda: _imread.imread(filespec, formatstr=formatstr))
-        maxval = 255 if frame.dtype == np.uint8 else 65535
-        must_squeeze = (frame.ndim > 2 and frame.shape[2] == 1)
-        frame = frame.squeeze(axis=2) if must_squeeze else frame
-        frame = _reraise(lambda: _exif_rotate(frame, filespec))
-        h, w = frame.shape[:2]
-        c = frame.shape[2] if frame.ndim > 2 else 1
-        _print(verbose, "Reading file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
-        return frame, maxval
-    raise ImageIOError("unrecognized file type `%s`."%(filetype))
+    elif filetype in [".jpg", ".jpeg", ".insp"]:
+        frame = _reraise(lambda: iio.imread(filespec, plugin="JPEG-FI"))
+    elif filetype in [".tiff", ".tif"]:
+        frame = _reraise(lambda: iio.imread(filespec, plugin="TIFF-FI"))
+    elif filetype in [".png"]:
+        frame = _reraise(lambda: iio.imread(filespec, plugin="PNG-FI"))
+    elif filetype in [".bmp"]:
+        frame = _reraise(lambda: iio.imread(filespec, plugin="BMP-FI"))
+    else:
+        raise ImageIOError("unrecognized file type `%s`."%(filetype))
+    maxval = np.iinfo(frame.dtype).max
+    h, w = frame.shape[:2]
+    c = frame.shape[2] if frame.ndim > 2 else 1
+    _print(verbose, "Reading file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
+    return frame, maxval
 
 def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     """
@@ -131,10 +140,16 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         _reraise(lambda: pnm.write(filespec, image, maxval, verbose))
     elif filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
         _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
-        _disallow(filetype in [".jpg", ".jpeg"] and maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
-        _disallow(filetype == ".png" and maxval not in [255, 65535], "maxval must be 255 or 65535 for a PNG; was %d."%(maxval))
-        formatstr = "jpg" if filetype == ".insp" else filetype[1:]
-        _reraise(lambda: _imread.imsave(filespec, image, formatstr=formatstr, opts={'jpeg:quality': 95}))
+        _disallow(maxval not in [255, 65535], "maxval must be 255 or 65535 for JPEG/PNG/BMP/TIFF; was %d."%(maxval))
+        if filetype in [".jpg", ".jpeg", ".insp"]:
+            _disallow(maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
+            frame = _reraise(lambda: iio.imwrite(filespec, image, plugin="pillow", extension=".jpg", quality=95))
+        if filetype in [".tiff", ".tif"]:
+            frame = _reraise(lambda: iio.imwrite(filespec, image, plugin="TIFF-FI"))
+        if filetype in [".png"]:
+            frame = _reraise(lambda: iio.imwrite(filespec, image, plugin="PNG-FI"))
+        if filetype in [".bmp"]:
+            frame = _reraise(lambda: iio.imwrite(filespec, image, plugin="BMP-FI"))
         h, w = image.shape[:2]
         c = image.shape[2] if image.ndim > 2 else 1
         _print(verbose, "Writing file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
