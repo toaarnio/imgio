@@ -239,18 +239,47 @@ def _read_raw(filespec, width, height, bpp, header_size=None, verbose=False):
         maxval = 2 ** bpp - 1
         wordsize = 2 if bpp > 8 else 1
         packed = len(buf) < (width * height * wordsize)
-        if header_size is None:
-            header_size = len(buf) - (width * height * wordsize)
-        fs, w, h, hdrsz = filespec, width, height, header_size
-        _print(verbose, "Reading raw Bayer file %s (w=%d, h=%d, maxval=%d, header=%d, packed=%r)"%(fs, w, h, maxval, hdrsz, packed))
         if not packed:
+            if header_size is None:
+                header_size = len(buf) - (width * height * wordsize)
+            fs, w, h, hdrsz = filespec, width, height, header_size
+            _print(verbose, "Reading raw Bayer file %s (w=%d, h=%d, maxval=%d, header=%d)"%(fs, w, h, maxval, hdrsz))
             dtype = "<u2" if bpp > 8 else np.uint8
-            pixels = np.frombuffer(buf, dtype, count=width * height, offset=header_size)
+            pixels = np.frombuffer(buf, dtype, count=width * height, offset=hdrsz)
             pixels = pixels.reshape(shape).astype(np.uint8 if bpp <= 8 else np.uint16)
         else:
-            # TODO: packed raw support
-            raise ImageIOError("Packed RAW reading not implemented yet!")
+            if bpp != 10:
+                raise ImageIOError(f"{bpp}-bit packed RAW reading not implemented yet!")
+            nbytes = width * height * bpp // 8
+            if header_size is None:
+                header_size = len(buf) - nbytes
+            fs, w, h, hdrsz = filespec, width, height, header_size
+            _print(verbose, "Reading packed raw Bayer file %s (w=%d, h=%d, maxval=%d, header=%d)"%(fs, w, h, maxval, hdrsz))
+            data = np.frombuffer(buf, dtype=np.uint8, count=nbytes, offset=hdrsz)
+            pixels = _read_uint10(data, lsb_first=True)
+            pixels = pixels.reshape(height, width)
         return pixels, maxval
+
+def _read_uint10(data, lsb_first):
+    # 5 bytes contain 4 10-bit pixels (5 * 8 == 4 * 10 == 40)
+    b1, b2, b3, b4, b5 = data.astype(np.uint16).reshape(-1, 5).T
+    if lsb_first:
+        # byte0: a7 a6 a5 a4 a3 a2 a1 a0
+        # byte1: b5 b4 b3 b2 b1 b0 a9 a8
+        # byte2: c3 c2 c1 c0 b9 b8 b7 b6
+        # byte3: d1 d0 c9 c8 c7 c6 c5 c4
+        # byte4: d9 d8 d7 d6 d5 d4 d3 d2
+        o1 = ((b2 % 4) << 8) + b1
+        o2 = ((b3 % 16) << 6) + (b2 >> 2)
+        o3 = ((b4 % 64) << 4) + (b3 >> 4)
+        o4 = (b5 << 2) + (b4 >> 6)
+    else:
+        o1 = (b1 << 2) + (b2 >> 6)
+        o2 = ((b2 % 64) << 4) + (b3 >> 4)
+        o3 = ((b3 % 16) << 6) + (b4 >> 2)
+        o4 = ((b4 % 4) << 8) + b5
+    unpacked = np.c_[o1, o2, o3, o4].ravel()
+    return unpacked
 
 def _write_raw(filespec, image, _maxval, _pack=False, _verbose=False):
     # TODO: packed raw support
@@ -531,6 +560,27 @@ class _TestImgIo(unittest.TestCase):
                     self.assertEqual(result.shape, shape)
                     self.assertEqual(result.tolist(), pixels.tolist())
                     os.remove(tempfile)
+
+    def test_packed_raw(self):
+        bpp = 10
+        maxval = 2**bpp - 1
+        pixels = np.random.random(4)
+        pixels = (pixels * maxval).astype(np.uint16)
+        packed = np.zeros(5, dtype=np.uint8)
+        packed[0] |= (pixels[0] & 0x00ff)  # byte0 / pixel0: 8 lsb
+        packed[1] |= (pixels[0] & 0x0300) >> 8  # byte1 / pixel0: 2 msb
+        packed[1] |= (pixels[1] & 0x003f) << 2  # byte1 / pixel1: 6 lsb
+        packed[2] |= (pixels[1] & 0x03c0) >> 6  # byte2 / pixel1: 4 msb
+        packed[2] |= (pixels[2] & 0x000f) << 4  # byte2 / pixel2: 4 lsb
+        packed[3] |= (pixels[2] & 0x03f0) >> 4  # byte3 / pixel2: 6 msb
+        packed[3] |= (pixels[3] & 0x0003) << 6  # byte3 / pixel3: 2 lsb
+        packed[4] |= (pixels[3] & 0x03fc) >> 2  # byte4 / pixel3: 8 msb
+        tempfile = "imgio.test%db.raw"%(bpp)
+        packed.tofile(tempfile)
+        result, resmaxval = imread(tempfile, width=2, height=2, bpp=bpp)
+        self.assertEqual(resmaxval, maxval)
+        self.assertEqual(result.shape, (2, 2))
+        np.testing.assert_equal(result.flatten(), pixels)
 
     def test_raw_header(self):
         bpp = 12
