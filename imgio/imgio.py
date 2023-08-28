@@ -1,7 +1,7 @@
 #!/usr/bin/python3 -B
 
 """
-Easy image file reading & writing. Supports PGM/PPM/PNM/PFM/PNG/BMP/JPG/TIFF/EXR/RAW.
+Easy image file reading & writing.
 
 Example:
   image, maxval = imgio.imread("foo.png")
@@ -47,8 +47,8 @@ imageio.plugins.freeimage.download()  # required for 16-bit PNG
 ######################################################################################
 
 
-RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".insp", ".npy", ".raw", ".exr"]
-RO_FORMATS = RW_FORMATS + [".bmp"]
+RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".insp", ".npy", ".raw", ".exr", ".hdr"]
+RO_FORMATS = RW_FORMATS
 
 
 def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, verbose=False):
@@ -84,17 +84,23 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
     elif filetype in [".pnm", ".pgm", ".ppm"]:
         frame, maxval = _reraise(lambda: pnm.read(filespec, verbose))
         return frame, maxval
+    elif filetype == ".hdr":
+        frame = _reraise(lambda: iio.imread(filespec, plugin="HDR-FI"))
+        maxval = np.max(frame)
     elif filetype in [".jpg", ".jpeg", ".insp"]:
         frame = _reraise(lambda: iio.imread(filespec, plugin="JPEG-FI"))
+        maxval = np.iinfo(frame.dtype).max
     elif filetype in [".tiff", ".tif"]:
         frame = _reraise(lambda: iio.imread(filespec, plugin="TIFF-FI"))
+        maxval = np.iinfo(frame.dtype).max
     elif filetype in [".png"]:
         frame = _reraise(lambda: iio.imread(filespec, plugin="PNG-FI"))
+        maxval = np.iinfo(frame.dtype).max
     elif filetype in [".bmp"]:
         frame = _reraise(lambda: iio.imread(filespec, plugin="BMP-FI"))
+        maxval = np.iinfo(frame.dtype).max
     else:
         raise ImageIOError("unrecognized file type `%s`."%(filetype))
-    maxval = np.iinfo(frame.dtype).max
     h, w = frame.shape[:2]
     c = frame.shape[2] if frame.ndim > 2 else 1
     _print(verbose, "Reading file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
@@ -136,6 +142,8 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         _reraise(lambda: _write_exr(filespec, image, verbose))
     elif filetype == ".npy":
         _reraise(lambda: _write_npy(filespec, image, verbose))
+    elif filetype == ".hdr":
+        _reraise(lambda: iio.imwrite(filespec, image, plugin="HDR-FI"))
     elif filetype in [".pnm", ".pgm", ".ppm"]:
         _reraise(lambda: pnm.write(filespec, image, maxval, verbose))
     elif filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
@@ -514,6 +522,24 @@ class _TestImgIo(unittest.TestCase):
                 self.assertEqual(result.dtype, dt)
                 self.assertEqual(result.shape, pixels.shape)
                 np.testing.assert_allclose(result, pixels)
+                os.remove(tempfile)
+
+    def test_hdr(self):
+        for dt in ["float16"]:
+            for shape in self.TEST_SHAPES_3:
+                tempfile = "imgio.test.hdr"
+                print("Testing HDR reading & writing in %s mode, shape=%s..."%(dt, repr(shape)))
+                pixels = np.random.random(shape) * 100000  # float64
+                inf_mask = pixels >= np.finfo(dt).max
+                pixels[inf_mask] = np.finfo(dt).max  # replace infs with maxval
+                pixels = pixels.astype(dt)  # convert to float16/32
+                pixels = pixels.astype(np.float32)
+                imwrite(tempfile, pixels, verbose=True)
+                result, resscale = imread(tempfile, verbose=True)
+                self.assertEqual(result.dtype, np.float32)
+                self.assertEqual(result.shape, pixels.shape)
+                # maximum absolute error of RGBE encoding at float16 range is ~256
+                np.testing.assert_allclose(result, pixels, atol=256)
                 os.remove(tempfile)
 
     def test_exif(self):

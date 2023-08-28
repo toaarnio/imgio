@@ -1,5 +1,5 @@
 """
-Easy image file reading & writing. Supports PGM/PPM/PNM/PFM/PNG/BMP/JPG/TIFF/EXR/RAW.
+Easy image file reading & writing.
 
 Example:
   image, maxval = imgio.imread("foo.png")
@@ -10,5 +10,5 @@ https://github.com/toaarnio/imgio
 
 from .imgio import *
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 __all__ = ["imread", "imwrite", "selftest"]
