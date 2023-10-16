@@ -135,18 +135,22 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         _reraise(lambda: _write_raw(filespec, image, maxval, packed, verbose))
     elif filetype == ".pfm":
         _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
+        _enforce(image.dtype.char in "efd", "image.dtype must be float{16,32,64} for PFM; was %s"%(image.dtype))
         _enforce(maxval >= 0.0, "maxval (scale) must be non-negative; was %s."%(repr(maxval)))
         _reraise(lambda: pfm.write(filespec, image, maxval, little_endian=True, verbose=verbose))
     elif filetype == ".exr":
+        _enforce(image.dtype.char in "efd", "image.dtype must be float{16,32,64} for EXR; was %s"%(image.dtype))
         _enforce(pyexr is not None, "OpenEXR support not installed")
         _reraise(lambda: _write_exr(filespec, image, verbose))
     elif filetype == ".npy":
         _reraise(lambda: _write_npy(filespec, image, verbose))
     elif filetype == ".hdr":
+        _enforce(image.dtype.char in "f", "image.dtype must be float32 for HDR; was %s"%(image.dtype))
+        _enforce(np.min(image) >= 0.0, "negative colors cannot be stored in HDR format; use EXR/PFM/NPY instead")
         _reraise(lambda: iio.imwrite(filespec, image, plugin="HDR-FI"))
     elif filetype in [".pnm", ".pgm", ".ppm"]:
         _reraise(lambda: pnm.write(filespec, image, maxval, verbose))
-    elif filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp"]:
+    elif filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp", ".bmp"]:
         _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
         _disallow(maxval not in [255, 65535], "maxval must be 255 or 65535 for JPEG/PNG/BMP/TIFF; was %d."%(maxval))
         if filetype in [".jpg", ".jpeg", ".insp"]:
@@ -372,7 +376,6 @@ class _TestImgIo(unittest.TestCase):
         self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "invalidformat.ppm")
         self.assertRaisesRegex(ImageIOError, "^Failed to read.*verbose", imread, "validimage.ppm", verbose="foo")
         self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invalidfilename", pixels8b, 255)
-        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invalidtype.bmp", pixels8b, 255)
         self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invaliddepth.ppm", pixels16b, 255)
         self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invaliddepth.png", pixels16b, 255)
         self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "invaliddepth.png", pixels8b, 254)
@@ -631,7 +634,7 @@ class _TestImgIo(unittest.TestCase):
         print("Testing Windows-style all-caps filenames...")
         maxval = 255
         dtype = np.uint8
-        for ext in [".pnm", ".pfm", ".ppm", ".jpg", ".jpeg"]:
+        for ext in [".pnm", ".ppm", ".jpg", ".jpeg"]:
             tempfile = "imgio.test%s"%(ext)
             capsfile = "imgio.test%s"%(ext.upper())
             shape = (7, 11, 3)
@@ -650,7 +653,7 @@ class _TestImgIo(unittest.TestCase):
         for dt in ["uint8", "uint16"]:
             maxval = np.iinfo(dt).max
             for shape in [(7, 11), (9, 13, 3)]:
-                for ext in [".pnm", ".jpg", ".png", ".pfm"]:
+                for ext in [".pnm", ".jpg", ".png"]:
                     if dt == "uint8" or ext != ".jpg":
                         tempfile = "imgio.test%s"%(ext)
                         pixels = np.random.random(shape)
