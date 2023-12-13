@@ -201,7 +201,7 @@ def _disallow(expression, error_message_if_true):
 def _reraise(func):
     try:
         return func()
-    except Exception as e:  # noqa: blind-except
+    except Exception as e:  # noqa: BLE001 [blind-except]
         raise ImageIOError("%s"%(repr(sys.exc_info()[1]))) from e
 
 def _print(verbose, *args, **kwargs):
@@ -210,7 +210,7 @@ def _print(verbose, *args, **kwargs):
 
 def _read_exr(filespec, verbose=False):
     exr = pyexr.open(filespec)
-    precision = list(exr.channel_precision.values())[0]
+    precision = list(exr.channel_precision.values())[0]  # noqa: RUF015
     data = exr.get(precision=precision)
     maxval = np.max(data)
     must_squeeze = (data.ndim > 2 and data.shape[2] == 1)
@@ -294,7 +294,6 @@ def _read_uint10(data, lsb_first):
     return unpacked
 
 def _write_raw(filespec, image, _maxval, _pack=False, _verbose=False):
-    # TODO: packed raw support
     # Warning: hardcoded endianness (x86)
     with open(filespec, "wb") as outfile:
         image = image.copy(order='C')  # ensure x86 byte order
@@ -310,13 +309,13 @@ def _write_raw(filespec, image, _maxval, _pack=False, _verbose=False):
 
 class _TestImgIo(unittest.TestCase):
 
-    TEST_SHAPES_1 = [(1, 1), (7, 11)]
-    TEST_SHAPES_3 = [(1, 1, 3), (7, 11, 3), (123, 321, 3)]
-    TEST_SHAPES_N = [(1, 1, 2), (1, 1, 9), (9, 13, 31)]
+    TEST_SHAPES_1 = ((1, 1), (7, 11))
+    TEST_SHAPES_3 = ((1, 1, 3), (7, 11, 3), (123, 321, 3))
+    TEST_SHAPES_N = ((1, 1, 2), (1, 1, 9), (9, 13, 31))
 
     TEST_SHAPES_ALL = TEST_SHAPES_1 + TEST_SHAPES_3 + TEST_SHAPES_N
 
-    def assertRaisesRegex(self, expected_exception, expected_regex, *args, **kwargs):  # noqa: invalid-function-name
+    def assertRaisesRegex(self, expected_exception, expected_regex, *args, **kwargs):  # noqa: N802 [invalid-function-name]
         """
         Checks that the correct type of exception is raised, and that the exception
         message matches the given regular expression. Also prints out the message
@@ -324,7 +323,7 @@ class _TestImgIo(unittest.TestCase):
         """
         try:  # check the type of exception first
             unittest.TestCase.assertRaises(self, expected_exception, *args, **kwargs)
-        except Exception as e:  # noqa: blind-except
+        except Exception as e:  # noqa: BLE001 [blind-except]
             raised_name = sys.exc_info()[0].__name__
             expected_name = expected_exception.__name___
             errstr = "Expected %s with a message matching '%s', got %s."%(expected_name, expected_regex, raised_name)
@@ -343,7 +342,7 @@ class _TestImgIo(unittest.TestCase):
             print("   FAIL: %s"%(e))
             raise
 
-    def test_exceptions(self):  # noqa: too-many-statements
+    def test_exceptions(self):  # noqa: PLR0915 [too-many-statements]
         print("Testing exception handling...")
         shape = (7, 11, 3)
         pixels = np.random.random(shape).astype(np.float32)
@@ -495,7 +494,7 @@ class _TestImgIo(unittest.TestCase):
 
     def test_npy(self):
         for dt in ["float16", "float32"]:
-            for shape in self.TEST_SHAPES_ALL + [(1, 1, 1), (7, 11, 1)]:
+            for shape in list(self.TEST_SHAPES_ALL) + [(1, 1, 1), (7, 11, 1)]:
                 scale = 3.141
                 tempfile = "imgio.test.npy"
                 print("Testing NPY reading & writing in %s mode, shape=%s..."%(dt, repr(shape)))
