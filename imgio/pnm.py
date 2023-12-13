@@ -64,7 +64,7 @@ def write(filespec, image, maxval, verbose=False):
     with open(filespec, "wb") as f:
         typestr = "P6" if numch == 3 else "P5"
         f.write(("%s %d %d %d\n"%(typestr, width, height, maxval)).encode("utf-8"))
-        f.write(image)
+        f.write(np.ascontiguousarray(image))
 
 ######################################################################################
 #
