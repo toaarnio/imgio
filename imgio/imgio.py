@@ -108,6 +108,41 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
     _print(verbose, "Reading file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
     return frame, maxval
 
+
+def imread_f64(filespec, **kwargs):
+    """
+    Reads the given image file from disk and returns it as a float64 array,
+    normalized by maxval. This is a shorthand for imread() followed by type
+    conversion and division by maxval.
+    """
+    img, maxval = imread(filespec, **kwargs)
+    img = img.astype(np.float64) / maxval
+    return img
+
+
+def imread_f32(filespec, **kwargs):
+    """
+    Reads the given image file from disk and returns it as a float32 array,
+    normalized by maxval. This is a shorthand for imread() followed by type
+    conversion and division by maxval.
+    """
+    img, maxval = imread(filespec, **kwargs)
+    img = img.astype(np.float32) / maxval
+    return img
+
+
+def imread_f16(filespec, **kwargs):
+    """
+    Reads the given image file from disk and returns it as a float16 array,
+    normalized by maxval. This is a shorthand for imread() followed by type
+    conversion and division by maxval.
+    """
+    img, maxval = imread(filespec, **kwargs)
+    img = img.astype(np.float32) / maxval
+    img = img.astype(np.float16)
+    return img
+
+
 def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     """
     Writes the given image to the given file, returns nothing. Grayscale images
@@ -170,6 +205,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     else:
         raise ImageIOError("unrecognized file type `%s`."%(filetype))
 
+
 def selftest():
     """
     Runs the full suite of unit tests that comes bundled with the package.
@@ -177,6 +213,7 @@ def selftest():
     print("--" * 35)
     suite = unittest.TestLoader().loadTestsFromTestCase(_TestImgIo)
     unittest.TextTestRunner(verbosity=0, failfast=True).run(suite)
+
 
 class ImageIOError(RuntimeError):
     """
@@ -423,6 +460,15 @@ class _TestImgIo(unittest.TestCase):
                 self.assertEqual(result.dtype, dtype)
                 self.assertEqual(result.shape, pixels.shape)
                 np.testing.assert_allclose(result, pixels)
+                result_f64 = imread_f64(tempfile)
+                result_f32 = imread_f32(tempfile)
+                result_f16 = imread_f16(tempfile)
+                self.assertEqual(result_f64.dtype, np.float64)
+                self.assertEqual(result_f32.dtype, np.float32)
+                self.assertEqual(result_f16.dtype, np.float16)
+                np.testing.assert_allclose(result_f64, pixels / maxval)
+                np.testing.assert_allclose(result_f32, pixels / maxval)
+                np.testing.assert_allclose(result_f16, pixels / maxval, atol=1e-3)
                 os.remove(tempfile)
 
     def test_pnm(self):
@@ -440,6 +486,15 @@ class _TestImgIo(unittest.TestCase):
                 self.assertEqual(result.dtype, dtype)
                 self.assertEqual(result.shape, pixels.shape)
                 np.testing.assert_allclose(result, pixels)
+                result_f64 = imread_f64(tempfile)
+                result_f32 = imread_f32(tempfile)
+                result_f16 = imread_f16(tempfile)
+                self.assertEqual(result_f64.dtype, np.float64)
+                self.assertEqual(result_f32.dtype, np.float32)
+                self.assertEqual(result_f16.dtype, np.float16)
+                np.testing.assert_allclose(result_f64, pixels / maxval)
+                np.testing.assert_allclose(result_f32, pixels / maxval)
+                np.testing.assert_allclose(result_f16, pixels / maxval, atol=1e-3)
                 os.remove(tempfile)
 
     def test_tiff(self):
@@ -457,6 +512,15 @@ class _TestImgIo(unittest.TestCase):
                 self.assertEqual(result.dtype, dtype)
                 self.assertEqual(result.shape, pixels.shape)
                 np.testing.assert_allclose(result, pixels)
+                result_f64 = imread_f64(tempfile)
+                result_f32 = imread_f32(tempfile)
+                result_f16 = imread_f16(tempfile)
+                self.assertEqual(result_f64.dtype, np.float64)
+                self.assertEqual(result_f32.dtype, np.float32)
+                self.assertEqual(result_f16.dtype, np.float16)
+                np.testing.assert_allclose(result_f64, pixels / maxval)
+                np.testing.assert_allclose(result_f32, pixels / maxval)
+                np.testing.assert_allclose(result_f16, pixels / maxval, atol=1e-3)
                 os.remove(tempfile)
 
     def test_jpg(self):
@@ -473,6 +537,15 @@ class _TestImgIo(unittest.TestCase):
                 self.assertEqual(result.dtype, np.uint8)
                 self.assertEqual(result.shape, pixels.shape)
                 np.testing.assert_allclose(result, pixels)
+                result_f64 = imread_f64(tempfile)
+                result_f32 = imread_f32(tempfile)
+                result_f16 = imread_f16(tempfile)
+                self.assertEqual(result_f64.dtype, np.float64)
+                self.assertEqual(result_f32.dtype, np.float32)
+                self.assertEqual(result_f16.dtype, np.float16)
+                np.testing.assert_allclose(result_f64, pixels / maxval)
+                np.testing.assert_allclose(result_f32, pixels / maxval)
+                np.testing.assert_allclose(result_f16, pixels / maxval, atol=1e-3)
                 os.remove(tempfile)
 
     def test_pfm(self):
@@ -490,6 +563,15 @@ class _TestImgIo(unittest.TestCase):
             self.assertEqual(result.dtype, np.float32)
             self.assertEqual(result.shape, pixels.shape)
             np.testing.assert_allclose(result, pixels)
+            result_f64 = imread_f64(tempfile)
+            result_f32 = imread_f32(tempfile)
+            result_f16 = imread_f16(tempfile)
+            self.assertEqual(result_f64.dtype, np.float64)
+            self.assertEqual(result_f32.dtype, np.float32)
+            self.assertEqual(result_f16.dtype, np.float16)
+            np.testing.assert_allclose(result_f64, pixels / scale)
+            np.testing.assert_allclose(result_f32, pixels / scale)
+            np.testing.assert_allclose(result_f16, pixels / scale, atol=1e-3)
             os.remove(tempfile)
 
     def test_npy(self):
@@ -524,6 +606,15 @@ class _TestImgIo(unittest.TestCase):
                 self.assertEqual(result.shape, pixels.shape)
                 self.assertEqual(resscale, 1.0)
                 np.testing.assert_allclose(result, pixels)
+                result_f64 = imread_f64(tempfile)
+                result_f32 = imread_f32(tempfile)
+                result_f16 = imread_f16(tempfile)
+                self.assertEqual(result_f64.dtype, np.float64)
+                self.assertEqual(result_f32.dtype, np.float32)
+                self.assertEqual(result_f16.dtype, np.float16)
+                np.testing.assert_allclose(result_f64.astype(dt), pixels)
+                np.testing.assert_allclose(result_f32.astype(dt), pixels)
+                np.testing.assert_allclose(result_f16, pixels.astype(np.float16))
                 os.remove(tempfile)
 
     def test_hdr(self):

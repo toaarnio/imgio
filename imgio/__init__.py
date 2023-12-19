@@ -10,5 +10,5 @@ https://github.com/toaarnio/imgio
 
 from .imgio import *
 
-__version__ = "1.3.2"
-__all__ = ["imread", "imwrite", "selftest"]
+__version__ = "1.4.0"
+__all__ = ["imread", "imread_f64", "imread_f32", "imread_f16", "imwrite", "selftest"]
