@@ -72,15 +72,17 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
         frame, maxval = _reraise(lambda: _read_raw(filespec, width, height, bpp, raw_header_size, verbose=verbose))
         return frame, maxval
     elif filetype == ".npy":
-        frame, maxval = _reraise(lambda: _read_npy(filespec, verbose))
-        return frame, maxval
+        frame = _reraise(lambda: _read_npy(filespec, verbose))
+        scale = 1.0
+        return frame, scale
     elif filetype == ".pfm":
         frame, scale = _reraise(lambda: pfm.read(filespec, verbose))
         return frame, scale
     elif filetype == ".exr":
         _enforce(pyexr is not None, "OpenEXR support not installed")
-        frame, maxval = _reraise(lambda: _read_exr(filespec, verbose))
-        return frame, maxval
+        frame = _reraise(lambda: _read_exr(filespec, verbose))
+        scale = 1.0
+        return frame, scale
     elif filetype in [".pnm", ".pgm", ".ppm"]:
         frame, maxval = _reraise(lambda: pnm.read(filespec, verbose))
         return frame, maxval
@@ -212,12 +214,11 @@ def _read_exr(filespec, verbose=False):
     exr = pyexr.open(filespec)
     precision = list(exr.channel_precision.values())[0]  # noqa: RUF015
     data = exr.get(precision=precision)
-    maxval = np.max(data)
     must_squeeze = (data.ndim > 2 and data.shape[2] == 1)
     data = data.squeeze(axis=2) if must_squeeze else data
     w, h, ch, dt = exr.width, exr.height, len(exr.channels), data.dtype
     _print(verbose, "Reading OpenEXR file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, dt))
-    return data, maxval
+    return data
 
 def _write_exr(filespec, image, verbose=False):
     h, w = image.shape[:2]
@@ -230,11 +231,10 @@ def _write_exr(filespec, image, verbose=False):
 def _read_npy(filespec, verbose=False):
     data = np.load(filespec)
     _enforce(data.ndim in [2, 3], "NumPy file %s image has unsupported shape %s"%(filespec, str(data.shape)))
-    maxval = np.max(data)
     h, w = data.shape[:2]
     ch = data.shape[2] if data.ndim == 3 else 1
     _print(verbose, "Reading NumPy file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, data.dtype))
-    return data, maxval
+    return data
 
 def _write_npy(filespec, image, verbose=False):
     _enforce(image.ndim in [2, 3], "image.shape must be or (m, n) or (m, n, c) for .npy; was %s."%(str(image.shape)))
@@ -512,17 +512,17 @@ class _TestImgIo(unittest.TestCase):
     def test_exr(self):
         for dt in ["float16", "float32"]:
             for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
-                scale = 3.141
                 tempfile = "imgio.test.exr"
                 print("Testing EXR reading & writing in %s mode, shape=%s..."%(dt, repr(shape)))
                 pixels = np.random.random(shape) * 100000  # float64
                 inf_mask = pixels >= np.finfo(dt).max
                 pixels[inf_mask] = np.inf
                 pixels = pixels.astype(dt)  # convert to float16/32
-                imwrite(tempfile, pixels, maxval=scale, verbose=False)
+                imwrite(tempfile, pixels, verbose=False)
                 result, resscale = imread(tempfile, verbose=False)
                 self.assertEqual(result.dtype, dt)
                 self.assertEqual(result.shape, pixels.shape)
+                self.assertEqual(resscale, 1.0)
                 np.testing.assert_allclose(result, pixels)
                 os.remove(tempfile)
 
@@ -565,10 +565,10 @@ class _TestImgIo(unittest.TestCase):
         print("Testing EXR reading...")
         thispath = os.path.dirname(os.path.abspath(__file__))
         filespec = os.path.join(thispath, "test-images", "GrayRampsDiagonal.exr")
-        img, maxval = imread(filespec)
+        img, scale = imread(filespec)
         self.assertEqual(img.shape, (800, 800))
-        #self.assertEqual(img.dtype, np.float16)
-        self.assertEqual(maxval, np.max(img))
+        self.assertEqual(img.dtype, np.float16)
+        self.assertEqual(scale, 1.0)
 
     def test_raw(self):
         for packed in [False]:
