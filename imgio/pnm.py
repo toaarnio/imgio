@@ -3,6 +3,7 @@ Utility functions for reading and writing RGB and grayscale PGM/PPM files.
 """
 
 import re
+import pathlib
 import numpy as np
 
 ######################################################################################
@@ -17,9 +18,10 @@ def read(filespec, verbose=False):
     ndarray with 8/16-bit elements. Also returns the maximum representable value of a
     pixel (typically 255, 1023, 4095, or 65535).
     """
+    filespec = pathlib.Path(filespec)
     valid_extensions = [".pnm", ".ppm", ".pgm", ".PNM", ".PPM", ".PGM"]
-    __enforce(isinstance(filespec, str) and len(filespec) >= 5, "filespec must be a string of length >= 5, was %r."%(filespec))
-    __enforce(filespec[-4:] in valid_extensions, "file extension must be .pnm, .ppm, or .pgm; was %s."%(filespec[-4:]))
+    __enforce(len(filespec.name) >= 5, "filename must be at least 5 characters, was %r."%(filespec.name))
+    __enforce(filespec.suffix in valid_extensions, "file suffix must be .pnm, .ppm, or .pgm; was %s."%(filespec.suffix))
     with open(filespec, "rb") as f:
         buf = f.read()
         regex_pnm_header = b"(^(P[56])\\s+(\\d+)\\s+(\\d+)\\s+(\\d+)\\s)"
@@ -43,16 +45,18 @@ def write(filespec, image, maxval, verbose=False):
     given name. The dtype of image must be consistent with maxval, i.e., np.uint8 for
     maxval <= 255, and np.uint16 otherwise.
     """
+    filespec = pathlib.Path(filespec)
+    suffix = filespec.suffix
     color_extensions = [".pnm", ".ppm", ".PNM", ".PPM"]
     gray_extensions = [".pnm", ".pgm", ".PNM", ".PGM"]
-    __enforce(isinstance(filespec, str) and len(filespec) >= 5, "filespec must be a string of length >= 5, was %r."%(filespec))
+    __enforce(len(filespec.name) >= 5, "filename must be at least 5 characters, was %r."%(filespec.name))
     __enforce(isinstance(image, np.ndarray), "image must be a NumPy ndarray; was %r."%(type(image)))
     __enforce(image.dtype in [np.uint8, np.uint16], "image.dtype must be uint8 or uint16; was %s."%(image.dtype))
     __enforce(image.ndim in [2, 3], "image must have either 2 or 3 dimensions; had %d."%(image.ndim))
     __enforce(image.size >= 1, "image must have at least one pixel; had none.")
     __enforce(isinstance(maxval, int) and 1 <= maxval <= 65535, "maxval must be an integer in [1, 65535]; was %r."%(maxval))
-    __enforce(filespec[-4:] in color_extensions or image.ndim == 2, "file extension must be .pnm or .ppm; was %s."%(filespec[-4:]))
-    __enforce(filespec[-4:] in gray_extensions or image.ndim == 3, "file extension must be .pnm or .pgm; was %s."%(filespec[-4:]))
+    __enforce(suffix in color_extensions or image.ndim == 2, "file extension must be .pnm or .ppm; was %s."%(suffix))
+    __enforce(suffix in gray_extensions or image.ndim == 3, "file extension must be .pnm or .pgm; was %s."%(suffix))
     __disallow(image.ndim == 3 and image.shape[2] != 3, "color images must have exactly 3 channels")
     __disallow(maxval > 255 and image.dtype == np.uint8, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
     __disallow(maxval <= 255 and image.dtype == np.uint16, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))

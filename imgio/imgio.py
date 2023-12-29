@@ -10,6 +10,7 @@ Example:
 
 import os                         # standard library
 import sys                        # standard library
+import pathlib                    # standard library
 import unittest                   # standard library
 
 import numpy as np                # pip install numpy
@@ -58,10 +59,12 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
     as 3D arrays of shape H x W x 3.
     """
     ImageIOError.error_message_prefix = "Failed to read %s: "%(repr(filespec))
-    _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
+    ispath = lambda p: isinstance(p, (pathlib.PurePath, str, bytes))
+    _enforce(ispath(filespec), "filespec must be a Path or string, was %s (%s)."%(type(filespec), repr(filespec)))
     _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)))
-    filename = os.path.basename(filespec)             # "path/image.pgm" => "image.pgm"
-    basename, extension = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
+    filespec = pathlib.Path(filespec)
+    filename = filespec.name  # path/to/image.pgm => image.pgm
+    basename, extension = os.path.splitext(filename)  # image.pgm => ("image", ".pgm")
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
     _enforce(extension.lower() in RO_FORMATS, "unrecognized file extension `%s`."%(extension))
     filetype = extension.lower()
@@ -149,8 +152,9 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     are expected to be provided as NumPy arrays with shape H x W, color images
     with shape H x W x C. Metadata, alpha channels, etc. are not supported.
     """
+    ispath = lambda p: isinstance(p, (pathlib.PurePath, str, bytes))
     ImageIOError.error_message_prefix = "Failed to write %s: "%(repr(filespec))
-    _enforce(isinstance(filespec, str), "filespec must be a string, was %s (%s)."%(type(filespec), repr(filespec)))
+    _enforce(ispath(filespec), "filespec must be a Path or string, was %s (%s)."%(type(filespec), repr(filespec)))
     _enforce(isinstance(image, np.ndarray), "image must be a NumPy ndarray; was %s."%(type(image)))
     _enforce(image.dtype.char in "BHefd", "image.dtype must be uint{8,16}, or float{16,32,64}; was %s"%(image.dtype))
     _enforce(image.size >= 1, "image must have at least one pixel; had none.")
@@ -161,8 +165,9 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     _disallow(image.ndim not in [2, 3], "image.shape must be (m, n) or (m, n, c); was %s."%(str(image.shape)))
     _disallow(maxval > 255 and image.dtype == np.uint8, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
     _disallow(maxval <= 255 and image.dtype == np.uint16, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
-    filename = os.path.basename(filespec)            # "path/image.pgm" => "image.pgm"
-    basename, extension = os.path.splitext(filename)  # "image.pgm" => ("image", ".pgm")
+    filespec = pathlib.Path(filespec)
+    filename = os.path.basename(filespec)  # path/to/image.pgm => image.pgm
+    basename, extension = os.path.splitext(filename)  # image.pgm => ("image", ".pgm")
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
     _enforce(extension.lower() in RW_FORMATS, "unrecognized or unsupported file extension `%s`."%(extension))
     filetype = extension.lower()
@@ -223,11 +228,13 @@ class ImageIOError(RuntimeError):
     def __init__(self, msg):
         RuntimeError.__init__(self, "%s%s"%(self.error_message_prefix, msg))
 
+
 ######################################################################################
 #
 #  I N T E R N A L   F U N C T I O N S
 #
 ######################################################################################
+
 
 def _enforce(expression, error_message_if_false):
     if not expression:
@@ -248,7 +255,7 @@ def _print(verbose, *args, **kwargs):
         print(*args, **kwargs)
 
 def _read_exr(filespec, verbose=False):
-    exr = pyexr.open(filespec)
+    exr = pyexr.open(str(filespec))
     precision = list(exr.channel_precision.values())[0]  # noqa: RUF015
     data = exr.get(precision=precision)
     must_squeeze = (data.ndim > 2 and data.shape[2] == 1)
@@ -262,7 +269,7 @@ def _write_exr(filespec, image, verbose=False):
     ch = image.shape[2] if image.ndim == 3 else 1
     dt = pyexr.HALF if image.dtype == np.float16 else pyexr.FLOAT
     channels = [f"ch{idx:02d}" for idx in range(ch)] if ch >= 5 else None
-    pyexr.write(filespec, image, precision=dt, channel_names=channels)
+    pyexr.write(str(filespec), image, precision=dt, channel_names=channels)
     _print(verbose, "Writing OpenEXR file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, image.dtype))
 
 def _read_npy(filespec, verbose=False):
@@ -449,7 +456,7 @@ class _TestImgIo(unittest.TestCase):
         for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
             for bpp in [8, 16]:
                 maxval = 2**bpp - 1
-                tempfile = "imgio.test%db.png"%(bpp)
+                tempfile = Path("imgio.test%db.png"%(bpp))
                 print("Testing PNG reading & writing in %d-bit mode, shape=%s..."%(bpp, repr(shape)))
                 dtype = np.uint8 if bpp <= 8 else np.uint16
                 pixels = np.random.random(shape)
@@ -475,7 +482,7 @@ class _TestImgIo(unittest.TestCase):
         for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
             for bpp in [1, 5, 7, 8, 10, 12, 15, 16]:
                 maxval = 2**bpp - 1
-                tempfile = "imgio.test%db.pnm"%(bpp)
+                tempfile = Path("imgio.test%db.pnm"%(bpp))
                 print("Testing PGM/PPM reading & writing in %d-bit mode, shape=%s..."%(bpp, repr(shape)))
                 dtype = np.uint8 if bpp <= 8 else np.uint16
                 pixels = np.random.random(shape)
@@ -501,7 +508,7 @@ class _TestImgIo(unittest.TestCase):
         for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
             for bpp in [8, 16]:
                 maxval = 2**bpp - 1
-                tempfile = "imgio.test%db.tif"%(bpp)
+                tempfile = Path("imgio.test%db.tif"%(bpp))
                 print("Testing TIFF reading & writing in %d-bit mode, shape=%s..."%(bpp, repr(shape)))
                 dtype = np.uint8 if bpp <= 8 else np.uint16
                 pixels = np.random.random(shape)
@@ -529,7 +536,7 @@ class _TestImgIo(unittest.TestCase):
             pixels = np.ones(shape)
             pixels = (pixels * 127).astype(np.uint8)
             for extension in ["jpg", "insp"]:
-                tempfile = "imgio.test." + extension
+                tempfile = Path("imgio.test." + extension)
                 print("Testing %s reading & writing, shape=%s..."%(extension.upper(), repr(shape)))
                 imwrite(tempfile, pixels, maxval, verbose=False)
                 result, resmaxval = imread(tempfile, verbose=False)
@@ -552,7 +559,7 @@ class _TestImgIo(unittest.TestCase):
         for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
             bpp = 32
             scale = 3.141
-            tempfile = "imgio.test.pfm"
+            tempfile = Path("imgio.test.pfm")
             print("Testing PFM reading & writing in %d-bit mode, shape=%s..."%(bpp, repr(shape)))
             pixels = np.random.random(shape)    # float64 pixels
             pixels = pixels.astype(np.float32)  # convert to float32
@@ -578,7 +585,7 @@ class _TestImgIo(unittest.TestCase):
         for dt in ["float16", "float32"]:
             for shape in list(self.TEST_SHAPES_ALL) + [(1, 1, 1), (7, 11, 1)]:
                 scale = 3.141
-                tempfile = "imgio.test.npy"
+                tempfile = Path("imgio.test.npy")
                 print("Testing NPY reading & writing in %s mode, shape=%s..."%(dt, repr(shape)))
                 pixels = np.random.random(shape) * 100000  # float64
                 inf_mask = pixels >= np.finfo(dt).max
@@ -594,7 +601,7 @@ class _TestImgIo(unittest.TestCase):
     def test_exr(self):
         for dt in ["float16", "float32"]:
             for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
-                tempfile = "imgio.test.exr"
+                tempfile = Path("imgio.test.exr")
                 print("Testing EXR reading & writing in %s mode, shape=%s..."%(dt, repr(shape)))
                 pixels = np.random.random(shape) * 100000  # float64
                 inf_mask = pixels >= np.finfo(dt).max
@@ -620,7 +627,7 @@ class _TestImgIo(unittest.TestCase):
     def test_hdr(self):
         for dt in ["float16"]:
             for shape in self.TEST_SHAPES_3:
-                tempfile = "imgio.test.hdr"
+                tempfile = Path("imgio.test.hdr")
                 print("Testing HDR reading & writing in %s mode, shape=%s..."%(dt, repr(shape)))
                 pixels = np.random.random(shape) * 100000  # float64
                 inf_mask = pixels >= np.finfo(dt).max
@@ -666,7 +673,7 @@ class _TestImgIo(unittest.TestCase):
             for shape in self.TEST_SHAPES_1:
                 for bpp in [1, 5, 7, 8, 10, 12, 13, 16]:
                     maxval = 2**bpp - 1
-                    tempfile = "imgio.test%db.raw"%(bpp)
+                    tempfile = Path("imgio.test%db.raw"%(bpp))
                     dtype = np.uint8 if bpp <= 8 else np.uint16
                     packstr = "packed" if packed else "padded to %d bits"%(np.dtype(dtype).itemsize * 8)
                     print("Testing RAW reading & writing in %d-bit mode (%s), shape=%s..."%(bpp, packstr, repr(shape)))
@@ -694,7 +701,7 @@ class _TestImgIo(unittest.TestCase):
         packed[3] |= (pixels[2] & 0x03f0) >> 4  # byte3 / pixel2: 6 msb
         packed[3] |= (pixels[3] & 0x0003) << 6  # byte3 / pixel3: 2 lsb
         packed[4] |= (pixels[3] & 0x03fc) >> 2  # byte4 / pixel3: 8 msb
-        tempfile = "imgio.test%db.raw"%(bpp)
+        tempfile = Path("imgio.test%db.raw"%(bpp))
         packed.tofile(tempfile)
         result, resmaxval = imread(tempfile, width=2, height=2, bpp=bpp)
         self.assertEqual(resmaxval, maxval)
@@ -725,8 +732,8 @@ class _TestImgIo(unittest.TestCase):
         maxval = 255
         dtype = np.uint8
         for ext in [".pnm", ".ppm", ".jpg", ".jpeg"]:
-            tempfile = "imgio.test%s"%(ext)
-            capsfile = "imgio.test%s"%(ext.upper())
+            tempfile = Path("imgio.test%s"%(ext))
+            capsfile = Path("imgio.test%s"%(ext.upper()))
             shape = (7, 11, 3)
             pixels = np.ones(shape)
             pixels = (pixels * maxval).astype(dtype)
@@ -745,7 +752,7 @@ class _TestImgIo(unittest.TestCase):
             for shape in [(7, 11), (9, 13, 3)]:
                 for ext in [".pnm", ".jpg", ".png"]:
                     if dt == "uint8" or ext != ".jpg":
-                        tempfile = "imgio.test%s"%(ext)
+                        tempfile = Path("imgio.test%s"%(ext))
                         pixels = np.random.random(shape)
                         pixels = (pixels * maxval).astype(dt)
                         imwrite(tempfile, pixels, maxval, verbose=True)
@@ -756,4 +763,5 @@ class _TestImgIo(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    Path = pathlib.Path
     selftest()
