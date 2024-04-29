@@ -340,7 +340,7 @@ def _read_uint10(data, lsb_first):
 def _write_raw(filespec, image, _maxval, _pack=False, _verbose=False):
     # Warning: hardcoded endianness (x86)
     with open(filespec, "wb") as outfile:
-        image = image.copy(order='C')  # ensure x86 byte order
+        image = image.copy(order="C")  # ensure x86 byte order
         outfile.write(image)
 
 
@@ -441,7 +441,7 @@ class _TestImgIo(unittest.TestCase):
         self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(bool))
         self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(np.float16))
         self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(np.float64))
-        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype('>f4'))
+        self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.ppm", pixels.astype(">f4"))
         self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.pfm", pixels, -1.0)
         self.assertRaisesRegex(ImageIOError, "^Failed to write", imwrite, "imgio.test.pfm", pixels, "255")
         self.assertRaisesRegex(ImageIOError, "^Failed to write.*shape", imwrite, "imgio.test.raw", pixels8b, 255)

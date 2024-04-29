@@ -18,7 +18,7 @@ def read(filename, verbose=False):
     factor' attribute is also returned. Both 1-channel and 3-channel images
     are supported, as well as both byte orders.
     """
-    with open(filename, 'rb') as f:
+    with open(filename, "rb") as f:
         buf = f.read()
         parsed = parse(buf)
         if parsed is not None:
@@ -39,9 +39,9 @@ def write(filename, pixels, scale=1.0, little_endian=True, verbose=False):
     supported. The shape of the given array must be (h, w) or (h, w, c),
     where c is either 1 or 3.
     """
-    with open(filename, 'wb') as f:
+    with open(filename, "wb") as f:
         if verbose:
-            print("Writing file %s "%(filename), end='')
+            print("Writing file %s "%(filename), end="")
         pfm_bytearray = generate(pixels, scale, little_endian, verbose)
         f.write(pfm_bytearray)
 
@@ -92,6 +92,6 @@ def generate(pixels, scale=1.0, little_endian=True, verbose=False):
         f32bs = f32.byteswap()
     if verbose:
         print("(w=%d, h=%d, c=%d, scale=%.3f, byteorder='%s')"%(width, height, numchannels, abs(scale), byteorder))
-    pfm_bytearray = bytearray("%s %d %d %.3f\n"%(typestr, width, height, scale), 'utf-8')
+    pfm_bytearray = bytearray("%s %d %d %.3f\n"%(typestr, width, height, scale), "utf-8")
     pfm_bytearray.extend(f32bs.flatten())
     return bytes(pfm_bytearray)
