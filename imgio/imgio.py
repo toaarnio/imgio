@@ -10,8 +10,9 @@ Example:
 
 import os                         # standard library
 import sys                        # standard library
-import pathlib                    # standard library
 import unittest                   # standard library
+from pathlib import Path          # standard library
+from pathlib import PurePath      # standard library
 
 import numpy as np                # pip install numpy
 import imageio                    # pip install imageio
@@ -59,10 +60,10 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
     as 3D arrays of shape H x W x 3.
     """
     ImageIOError.error_message_prefix = "Failed to read %s: "%(repr(filespec))
-    ispath = lambda p: isinstance(p, (pathlib.PurePath, str, bytes))
+    ispath = lambda p: isinstance(p, (PurePath, str, bytes))
     _enforce(ispath(filespec), "filespec must be a Path or string, was %s (%s)."%(type(filespec), repr(filespec)))
     _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)))
-    filespec = pathlib.Path(filespec)
+    filespec = Path(filespec)
     filename = filespec.name  # path/to/image.pgm => image.pgm
     basename, extension = os.path.splitext(filename)  # image.pgm => ("image", ".pgm")
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
@@ -152,7 +153,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     are expected to be provided as NumPy arrays with shape H x W, color images
     with shape H x W x C. Metadata, alpha channels, etc. are not supported.
     """
-    ispath = lambda p: isinstance(p, (pathlib.PurePath, str, bytes))
+    ispath = lambda p: isinstance(p, (PurePath, str, bytes))
     ImageIOError.error_message_prefix = "Failed to write %s: "%(repr(filespec))
     _enforce(ispath(filespec), "filespec must be a Path or string, was %s (%s)."%(type(filespec), repr(filespec)))
     _enforce(isinstance(image, np.ndarray), "image must be a NumPy ndarray; was %s."%(type(image)))
@@ -165,7 +166,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     _disallow(image.ndim not in [2, 3], "image.shape must be (m, n) or (m, n, c); was %s."%(str(image.shape)))
     _disallow(maxval > 255 and image.dtype == np.uint8, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
     _disallow(maxval <= 255 and image.dtype == np.uint16, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
-    filespec = pathlib.Path(filespec)
+    filespec = Path(filespec)
     filename = os.path.basename(filespec)  # path/to/image.pgm => image.pgm
     basename, extension = os.path.splitext(filename)  # image.pgm => ("image", ".pgm")
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
@@ -763,5 +764,4 @@ class _TestImgIo(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    Path = pathlib.Path
     selftest()
