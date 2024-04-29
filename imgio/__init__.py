@@ -8,7 +8,8 @@ Example:
 https://github.com/toaarnio/imgio
 """
 
+from .version import __version__
+
 from .imgio import *
 
-__version__ = "1.4.1"
-__all__ = ["imread", "imread_f64", "imread_f32", "imread_f16", "imwrite", "selftest"]
+__all__ = ["__version__", "imread", "imread_f64", "imread_f32", "imread_f16", "imwrite", "selftest"]

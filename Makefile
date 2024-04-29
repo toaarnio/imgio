@@ -1,11 +1,17 @@
-lint:
-	ruff imgio/*.py --show-source
+deps:
+	pip install --quiet hatch pytest
 
-install: lint
-	pip3 uninstall --yes imgio || true
-	rm -rf build dist imgio.egg-info || true
-	python3 setup.py sdist bdist_wheel
-	pip3 install --user dist/*.whl
+lint:
+	ruff check --output-format=full imgio/*.py
+
+clean:
+	hatch clean
+
+install: deps lint clean
+	hatch build
+	pip3 uninstall --quiet --yes imgio
+	pip3 install --quiet dist/*.whl
+	unzip -v dist/*.whl
 	@python3 -c 'import imgio; print(f"Installed imgio version {imgio.__version__}.")'
 
 release: install

@@ -2,7 +2,7 @@
 
 [![Build Status](https://travis-ci.com/toaarnio/imgio.svg?branch=master)](https://travis-ci.com/github/toaarnio/imgio)
 
-Easy image file reading &amp; writing for Python. Tested on Python 3.8+.
+Easy image file reading &amp; writing for Python. Tested on Python 3.10.
 
 Supported file formats (read/write):
 
