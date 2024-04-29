@@ -17,8 +17,13 @@ classifiers = [
 ]
 dependencies = [
   "numpy",
+  "openexr",
+  "pyexr",
   "imageio",
 ]
+
+[envs.default.env-vars]
+PIP_NO_BINARY="openexr"
 
 [project.urls]
 Homepage = "http://github.com/toaarnio/imgio"
