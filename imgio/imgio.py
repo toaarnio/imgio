@@ -202,7 +202,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
         if filetype in [".tiff", ".tif"]:
             _reraise(lambda: iio.imwrite(filespec, image, plugin="TIFF-FI"))
         if filetype in [".png"]:
-            _reraise(lambda: iio.imwrite(filespec, image, plugin="PNG-FI"))
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="PNG-FI", compression=1))
         if filetype in [".bmp"]:
             _reraise(lambda: iio.imwrite(filespec, image, plugin="BMP-FI"))
         h, w = image.shape[:2]
