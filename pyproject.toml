@@ -22,6 +22,9 @@ dependencies = [
   "imageio",
 ]
 
+[tool.hatch.envs.default]
+installer = "uv"
+
 [envs.default.env-vars]
 PIP_NO_BINARY="openexr"
 
