@@ -248,7 +248,7 @@ def _disallow(expression, error_message_if_true):
 def _reraise(func):
     try:
         return func()
-    except Exception as e:  # noqa: BLE001 [blind-except]
+    except Exception as e:
         raise ImageIOError("%s"%(repr(sys.exc_info()[1]))) from e
 
 def _print(verbose, *args, **kwargs):
@@ -368,7 +368,7 @@ class _TestImgIo(unittest.TestCase):
         """
         try:  # check the type of exception first
             unittest.TestCase.assertRaises(self, expected_exception, *args, **kwargs)
-        except Exception as e:  # noqa: BLE001 [blind-except]
+        except Exception as e:
             raised_name = sys.exc_info()[0].__name__
             expected_name = expected_exception.__name___
             errstr = "Expected %s with a message matching '%s', got %s."%(expected_name, expected_regex, raised_name)
