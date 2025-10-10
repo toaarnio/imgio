@@ -16,7 +16,7 @@ install: deps lint clean
 
 qinstall:  # quick & quiet install; wheel only
 	@hatch build -t wheel
-	@uv pip uninstall --quiet imsize
+	@uv pip uninstall --quiet imgio
 	@uv pip install --quiet dist/*.whl || true
 
 release: install

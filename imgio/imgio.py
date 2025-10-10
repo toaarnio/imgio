@@ -17,7 +17,7 @@ from pathlib import PurePath      # standard library
 import numpy as np                # pip install numpy
 import imageio                    # pip install imageio
 import imageio.v3 as iio          # pip install imageio
-
+import imageio_freeimage          # pip install imageio-freeimage # noqa: F401
 
 try:
     import pyexr                  # pip install pyexr + apt install libopenexr-dev
@@ -28,6 +28,13 @@ except ModuleNotFoundError:
     print()
     pyexr = None
 
+try:
+    imageio.plugins.freeimage.download()  # required for 16-bit PNG
+    freeimage = True
+except OSError:
+    print("imgio: FreeImage download failed, using Pillow instead. Some file formats may not work.")
+    print()
+    freeimage = False
 
 try:
     # package mode
@@ -37,9 +44,6 @@ except ImportError:
     # stand-alone mode
     import pnm                    # local import: pnm.py
     import pfm                    # local import: pfm.py
-
-
-imageio.plugins.freeimage.download()  # required for 16-bit PNG
 
 
 ######################################################################################
@@ -94,16 +98,16 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
         frame = _reraise(lambda: iio.imread(filespec, plugin="HDR-FI"))
         maxval = np.max(frame)
     elif filetype in [".jpg", ".jpeg", ".insp"]:
-        frame = _reraise(lambda: iio.imread(filespec, plugin="JPEG-FI"))
+        frame = _reraise(lambda: iio.imread(filespec, plugin="JPEG-FI" if freeimage else "pillow"))
         maxval = np.iinfo(frame.dtype).max
     elif filetype in [".tiff", ".tif"]:
-        frame = _reraise(lambda: iio.imread(filespec, plugin="TIFF-FI"))
+        frame = _reraise(lambda: iio.imread(filespec, plugin="TIFF-FI" if freeimage else "pillow"))
         maxval = np.iinfo(frame.dtype).max
     elif filetype in [".png"]:
-        frame = _reraise(lambda: iio.imread(filespec, plugin="PNG-FI"))
+        frame = _reraise(lambda: iio.imread(filespec, plugin="PNG-FI" if freeimage else "pillow"))
         maxval = np.iinfo(frame.dtype).max
     elif filetype in [".bmp"]:
-        frame = _reraise(lambda: iio.imread(filespec, plugin="BMP-FI"))
+        frame = _reraise(lambda: iio.imread(filespec, plugin="BMP-FI" if freeimage else "pillow"))
         maxval = np.iinfo(frame.dtype).max
     else:
         raise ImageIOError("unrecognized file type `%s`."%(filetype))
@@ -200,11 +204,11 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
             _disallow(maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
             _reraise(lambda: iio.imwrite(filespec, image, plugin="pillow", extension=".jpg", quality=95))
         if filetype in [".tiff", ".tif"]:
-            _reraise(lambda: iio.imwrite(filespec, image, plugin="TIFF-FI"))
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="TIFF-FI" if freeimage else "pillow"))
         if filetype in [".png"]:
-            _reraise(lambda: iio.imwrite(filespec, image, plugin="PNG-FI", compression=1))
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="PNG-FI" if freeimage else "pillow", compression=1))
         if filetype in [".bmp"]:
-            _reraise(lambda: iio.imwrite(filespec, image, plugin="BMP-FI"))
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="BMP-FI" if freeimage else "pillow"))
         h, w = image.shape[:2]
         c = image.shape[2] if image.ndim > 2 else 1
         _print(verbose, "Writing file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
@@ -396,10 +400,10 @@ class _TestImgIo(unittest.TestCase):
         imwrite("validimage.ppm", pixels8b, 255)
         imwrite("imgio.test.ppm", pixels8b, 255)
         imwrite("imgio.test.png", pixels8b, 255)
-        imwrite("imgio.test.jpg", pixels8b, 255)
+        imwrite("imgio.test.npy", pixels8b, 255)
         os.rename("imgio.test.ppm", "invalidformat.pfm")
-        os.rename("imgio.test.png", "invalidformat.jpg")
-        os.rename("imgio.test.jpg", "invalidformat.ppm")
+        os.rename("imgio.test.npy", "invalidformat.jpg")
+        os.rename("imgio.test.png", "invalidformat.ppm")
         self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, None)
         self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, 0xdeadbeef)
         self.assertRaisesRegex(ImageIOError, "^Failed to read", imread, "")
@@ -455,7 +459,7 @@ class _TestImgIo(unittest.TestCase):
 
     def test_png(self):
         for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
-            for bpp in [8, 16]:
+            for bpp in [8, 16] if freeimage else [8]:
                 maxval = 2**bpp - 1
                 tempfile = Path("imgio.test%db.png"%(bpp))
                 print("Testing PNG reading & writing in %d-bit mode, shape=%s..."%(bpp, repr(shape)))
@@ -507,7 +511,7 @@ class _TestImgIo(unittest.TestCase):
 
     def test_tiff(self):
         for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:
-            for bpp in [8, 16]:
+            for bpp in [8, 16] if freeimage else [8]:
                 maxval = 2**bpp - 1
                 tempfile = Path("imgio.test%db.tif"%(bpp))
                 print("Testing TIFF reading & writing in %d-bit mode, shape=%s..."%(bpp, repr(shape)))
@@ -748,7 +752,7 @@ class _TestImgIo(unittest.TestCase):
 
     def test_verbose(self):
         print("Testing verbose mode...")
-        for dt in ["uint8", "uint16"]:
+        for dt in ["uint8", "uint16"] if freeimage else ["uint8"]:
             maxval = np.iinfo(dt).max
             for shape in [(7, 11), (9, 13, 3)]:
                 for ext in [".pnm", ".jpg", ".png"]:
