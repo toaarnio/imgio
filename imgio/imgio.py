@@ -17,7 +17,6 @@ from pathlib import PurePath      # standard library
 import numpy as np                # pip install numpy
 import imageio                    # pip install imageio
 import imageio.v3 as iio          # pip install imageio
-import imageio_freeimage          # pip install imageio-freeimage # noqa: F401
 
 try:
     import pyexr                  # pip install pyexr + apt install libopenexr-dev

@@ -20,7 +20,6 @@ dependencies = [
   "openexr",
   "pyexr",
   "imageio",
-  "imageio-freeimage",
 ]
 
 [tool.hatch.envs.default]
