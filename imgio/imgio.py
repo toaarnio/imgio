@@ -29,9 +29,12 @@ except ModuleNotFoundError:
 
 try:
     imageio.plugins.freeimage.download()  # required for 16-bit PNG
+    thispath = os.path.dirname(os.path.abspath(__file__))
+    filespec = Path(thispath) / "test-images" / "portrait_1.jpg"
+    iio.imread(filespec, plugin="JPEG-FI")
     freeimage = True
 except OSError:
-    print("imgio: FreeImage download failed, using Pillow instead. Some file formats may not work.")
+    print("imgio: FreeImage is malfunctioning, using Pillow instead. Some file formats may not work.")
     print()
     freeimage = False
 
