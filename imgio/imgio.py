@@ -596,7 +596,7 @@ class _TestImgIo(unittest.TestCase):
                 pixels[inf_mask] = np.inf
                 pixels = pixels.astype(dt)  # convert to float16/32
                 imwrite(tempfile, pixels, maxval=scale, verbose=False)
-                result, resscale = imread(tempfile, verbose=False)
+                result, _resscale = imread(tempfile, verbose=False)
                 self.assertEqual(result.dtype, dt)
                 self.assertEqual(result.shape, pixels.shape)
                 np.testing.assert_allclose(result, pixels)
@@ -639,7 +639,7 @@ class _TestImgIo(unittest.TestCase):
                 pixels = pixels.astype(dt)  # convert to float16/32
                 pixels = pixels.astype(np.float32)
                 imwrite(tempfile, pixels, verbose=True)
-                result, resscale = imread(tempfile, verbose=True)
+                result, _resscale = imread(tempfile, verbose=True)
                 self.assertEqual(result.dtype, np.float32)
                 self.assertEqual(result.shape, pixels.shape)
                 # maximum absolute error of RGBE encoding at float16 range is ~256
