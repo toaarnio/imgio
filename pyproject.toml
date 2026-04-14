@@ -22,11 +22,11 @@ dependencies = [
   "imageio",
 ]
 
-[tool.hatch.envs.default]
-installer = "uv"
-
-[envs.default.env-vars]
-PIP_NO_BINARY="openexr"
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff",
+]
 
 [project.urls]
 Homepage = "http://github.com/toaarnio/imgio"
@@ -39,4 +39,4 @@ include = ["imgio"]
 exclude = ["*~"]
 
 [tool.pytest.ini_options]
-pythonpath = "imgio"
+pythonpath = ["."]

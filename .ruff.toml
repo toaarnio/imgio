@@ -33,6 +33,7 @@ lint.ignore = [
        "TRY003",  # tryceratops: raise-vanilla-args
        "RUF005",  # ruff-specific-rules: unpack-instead-of-concatenating-to-collection-literal
        "PLR2004",  # refactor: magic-value-comparison
+       "FURB171",  # refurb: single-item-membership-test
 
        # ignore individual errors & warnings [this project]
 

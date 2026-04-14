@@ -1,25 +1,19 @@
 deps:
-	uv pip install --quiet hatch pytest
+	uv sync --extra dev
 
 lint:
-	ruff check --output-format=full imgio/*.py
+	uv run ruff check imgio/*.py
 
-clean:
-	hatch clean
-
-install: deps lint clean
-	hatch build
+install:
+	rm -rf dist || true
+	uv build
 	uv pip uninstall --quiet imgio
 	uv pip install --quiet dist/*.whl
 	unzip -v dist/*.whl
 	@python3 -c 'import imgio; print(f"Installed imgio version {imgio.__version__}.")'
 
-qinstall:  # quick & quiet install; wheel only
-	@hatch build -t wheel
-	@uv pip uninstall --quiet imgio
-	@uv pip install --quiet dist/*.whl || true
+release:
+	@echo "Publishing is handled by GitHub Actions with PyPI Trusted Publishing."
+	@echo "Create a GitHub Release to trigger the publish workflow."
 
-release: install
-	uv pip install setuptools wheel twine
-	make install
-	twine upload dist/*
+.PHONY: deps lint install release
