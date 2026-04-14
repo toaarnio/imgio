@@ -33,5 +33,8 @@ jobs:
       - name: Lint
         run: uv run ruff check imgio/*.py
 
+      - name: Test
+        run: uv run pytest -v
+
       - name: Build distributions
         run: uv build
