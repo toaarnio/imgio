@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 import imgio
-from imgio import imread, imread_f16, imread_f32, imread_f64, imwrite, ImageIOError
+from imgio import imread, imread_f16, imread_f32, imread_f64, imwrite, rawread, ImageIOError
 from imgio.imgio import freeimage
 
 IMAGES_DIR = Path(__file__).parent / "images"
@@ -18,8 +18,9 @@ class TestImgIo(unittest.TestCase):
     TEST_SHAPES_1 = ((1, 1), (7, 11))
     TEST_SHAPES_3 = ((1, 1, 3), (7, 11, 3), (123, 321, 3))
     TEST_SHAPES_N = ((1, 1, 2), (1, 1, 9), (9, 13, 31))
+    TEST_SHAPES_RAW = ((4, 8), (32, 36))
 
-    TEST_SHAPES_ALL = TEST_SHAPES_1 + TEST_SHAPES_3 + TEST_SHAPES_N
+    TEST_SHAPES_ALL = TEST_SHAPES_1 + TEST_SHAPES_3 + TEST_SHAPES_N + TEST_SHAPES_RAW
 
     def setUp(self):
         self._original_dir = os.getcwd()
@@ -294,10 +295,10 @@ class TestImgIo(unittest.TestCase):
         self.assertEqual(img.dtype, np.float16)
         self.assertEqual(scale, 1.0)
 
-    def test_raw(self):
+    def test_unpacked_raw(self):
         for packed in [False]:
-            for shape in self.TEST_SHAPES_1:
-                for bpp in [1, 5, 7, 8, 10, 12, 13, 16]:
+            for shape in self.TEST_SHAPES_RAW:
+                for bpp in [10, 12]:
                     maxval = 2**bpp - 1
                     tempfile = Path("imgio.test%db.raw"%(bpp))
                     dtype = np.uint8 if bpp <= 8 else np.uint16
@@ -306,7 +307,7 @@ class TestImgIo(unittest.TestCase):
                     pixels = np.random.random(shape)
                     pixels = (pixels * maxval).astype(dtype)
                     imwrite(tempfile, pixels, maxval, packed=packed)
-                    result, resmaxval = imread(tempfile, width=shape[1], height=shape[0], bpp=bpp)
+                    result, resmaxval = rawread(tempfile, shape[1], shape[0], bpp)
                     self.assertEqual(resmaxval, maxval)
                     self.assertEqual(result.dtype, dtype)
                     self.assertEqual(result.shape, shape)
@@ -327,11 +328,14 @@ class TestImgIo(unittest.TestCase):
         packed[3] |= (pixels[2] & 0x03f0) >> 4  # byte3 / pixel2: 6 msb
         packed[3] |= (pixels[3] & 0x0003) << 6  # byte3 / pixel3: 2 lsb
         packed[4] |= (pixels[3] & 0x03fc) >> 2  # byte4 / pixel3: 8 msb
+        packed = np.tile(packed, 3)  # 3 * 4 = 12 pixels => 15 bytes
+        packed = np.r_[packed, 0]  # pad to 16 bytes
+        pixels = np.tile(pixels, 3)  # 3 * 4 = 12 pixels
         tempfile = Path("imgio.test%db.raw"%(bpp))
         packed.tofile(tempfile)
-        result, resmaxval = imread(tempfile, width=2, height=2, bpp=bpp)
+        result, resmaxval = rawread(tempfile, width=12, height=1, bpp=bpp)
         self.assertEqual(resmaxval, maxval)
-        self.assertEqual(result.shape, (2, 2))
+        self.assertEqual(result.shape, (1, 12))
         np.testing.assert_equal(result.flatten(), pixels)
 
     def test_raw_header(self):
@@ -346,7 +350,10 @@ class TestImgIo(unittest.TestCase):
         pixels = (pixels * maxval).astype(np.uint16)
         data = np.hstack((header, pixels.flatten(), footer)).reshape(1, -1)
         imwrite(tempfile, data, maxval)
-        result, resmaxval = imread(tempfile, width=shape[1], height=shape[0], bpp=bpp, raw_header_size=17 * 2)
+        expected_bytes = (28 * 60 + 17 + 19) * 2
+        self.assertEqual(data.nbytes, expected_bytes)
+        self.assertEqual(os.path.getsize(tempfile), expected_bytes)
+        result, resmaxval = rawread(tempfile, width=shape[1], height=shape[0], bpp=bpp, header_size=17 * 2)
         self.assertEqual(resmaxval, maxval)
         self.assertEqual(result.dtype, np.uint16)
         self.assertEqual(result.shape, shape)

@@ -1,4 +1,4 @@
-target-version = "py38"
+target-version = "py310"
 
 line-length = 150
 
@@ -41,6 +41,7 @@ lint.ignore = [
        "UP031",  # pyupgrade: printf-string-formatting
        "C901",  # mccabe: complex-structure
        "NPY002",  # npy: numpy-legacy-random
+       "SIM108",  # flake8-simplify: if-else-block-instead-of-if-exp
 
        ]
 

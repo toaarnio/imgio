@@ -15,6 +15,10 @@ import numpy as np                # pip install numpy
 import imageio                    # pip install imageio
 import imageio.v3 as iio          # pip install imageio
 
+from . import pnm                 # local import: pnm.py
+from . import pfm                 # local import: pfm.py
+from . import raw                 # local import: raw.py
+
 try:
     import pyexr                  # pip install pyexr + apt install libopenexr-dev
 except ModuleNotFoundError:
@@ -32,15 +36,6 @@ except OSError:
     print()
     freeimage = False
 
-try:
-    # package mode
-    from imgio import pnm         # local import: pnm.py
-    from imgio import pfm         # local import: pfm.py
-except ImportError:
-    # stand-alone mode
-    import pnm                    # local import: pnm.py
-    import pfm                    # local import: pfm.py
-
 
 ######################################################################################
 #
@@ -50,10 +45,11 @@ except ImportError:
 
 
 RW_FORMATS = [".pnm", ".pgm", ".ppm", ".pfm", ".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".insp", ".npy", ".raw", ".exr", ".hdr"]
-RO_FORMATS = RW_FORMATS
+RO_FORMATS = RW_FORMATS + [".mipi"]
 
 
-def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, verbose=False):
+def imread(filespec: str | Path,
+           verbose: bool = False) -> np.ndarray:
     """
     Reads the given image file from disk and returns it as a NumPy array.
     Grayscale images are returned as 2D arrays of shape H x W, color images
@@ -69,13 +65,9 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
     _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
     _enforce(extension.lower() in RO_FORMATS, "unrecognized file extension `%s`."%(extension))
     filetype = extension.lower()
-    if filetype == ".raw":
-        _enforce(isinstance(bpp, int) and 1 <= bpp <= 16, "bpp must be an integer in [1, 16]; was %s"%(repr(bpp)))
-        _enforce(isinstance(width, int) and width >= 1, "width must be an integer >= 1; was %s"%(repr(width)))
-        _enforce(isinstance(height, int) and height >= 1, "height must be an integer >= 1; was %s"%(repr(height)))
-        frame, maxval = _reraise(lambda: _read_raw(filespec, width, height, bpp, raw_header_size, verbose=verbose))
-        return frame, maxval
-    elif filetype == ".npy":
+    if filetype in [".raw", ".mipi"]:
+        raise ImageIOError("use .rawread() instead of .imread() to load sensor raw files")
+    if filetype == ".npy":
         frame = _reraise(lambda: _read_npy(filespec, verbose))
         scale = 1.0
         return frame, scale
@@ -110,6 +102,65 @@ def imread(filespec, width=None, height=None, bpp=None, raw_header_size=None, ve
     h, w = frame.shape[:2]
     c = frame.shape[2] if frame.ndim > 2 else 1
     _print(verbose, "Reading file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
+    return frame, maxval
+
+
+def rawread(filespec: str | Path,
+            width: int,
+            height: int,
+            bpp: int,
+            stride: int | None = None,
+            packing: str | None = None,
+            header_size: int | None = None,
+            verbose: bool = False) -> np.ndarray:
+    """
+    Reads the given sensor raw file from disk and unpacks it into a uint16 array.
+
+    :param filespec: file to load
+    :param width: width of the frame in pixels
+    :param height: height of the frame in pixels
+    :param bpp: bits per pixel; must be in [10, 12, 14, 16]
+    :param stride: row length in bytes; can be greater than width * bpp / 8
+    :param header_size: number of header bytes to skip (not decoded)
+    :param packing: bit packing mode; must be unpacked|plain|mipi|None
+    """
+    _enforce(isinstance(bpp, int) and bpp in [10, 12, 14, 16], "bpp must be in [10, 12, 14, 16]; was %s"%(repr(bpp)))
+    _enforce(isinstance(width, int) and width % 2 == 0, "width must be an integer multiple of 2; was %s"%(repr(width)))
+    _enforce(isinstance(height, int) and height >= 1, "height must be an integer and >= 1; was %s"%(repr(height)))
+    _enforce(stride is None or stride >= width, "stride must be None or >= width; was %s"%(repr(stride)))
+    _enforce(packing == "unpacked" or bpp in [10, 12], f"{bpp}-bit packed RAW reading is not supported")
+
+    data = np.fromfile(filespec, dtype=np.uint8)
+    header_size = header_size or 0
+    is_packed = data.size < width * height * 2 + header_size
+
+    _enforce(not (packing == "unpacked" and is_packed), f"not enough bytes for {width} x {height} pixels as unpacked raw")
+
+    if packing is None:
+        packing = "plain" if is_packed else "unpacked"
+
+    if stride is None:
+        if packing in ["mipi", "plain"]:
+            # round up to nearest 16-byte boundary
+            stride = int(np.ceil(width * bpp / 8 / 16) * 16)
+        else:  # unpacked
+            # no need to round up, any alignment is ok
+            stride = width * 2
+
+    nbytes = stride * height + header_size
+    bytedepth = 2 if packing == "unpacked" else bpp / 8
+    _enforce(data.size >= nbytes, f"expected at least {stride} * {height} + {header_size} = {nbytes} bytes, got {data.size}")
+
+    data = data[header_size:nbytes]  # trim header & footer bytes
+    data = data.reshape(height, stride)
+    data = data[:, :int(width * bytedepth)]  # trim right edge padding
+    data = data.ravel()
+    frame = _reraise(lambda: raw.decode(data, bpp, packing))
+    frame = frame.reshape(-1, width)  # allow extra rows at bottom
+    frame = frame[:height, :width]  # trim bottom edge padding
+    maxval = 2 ** bpp - 1
+    h, w = frame.shape[:2]
+    _print(verbose, "Reading raw file %s (w=%d, h=%d, maxval=%d)"%(filespec, w, h, maxval))
     return frame, maxval
 
 
@@ -175,7 +226,7 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     if filetype == ".raw":
         _enforce(packed is False, "packed Bayer RAW images are not yet supported.")
         _enforce(image.ndim == 2, "image.shape must be (m, n) for a Bayer RAW; was %s."%(str(image.shape)))
-        _reraise(lambda: _write_raw(filespec, image, maxval, packed, verbose))
+        _reraise(lambda: raw.write(filespec, image, maxval, packed, verbose))
     elif filetype == ".pfm":
         _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
         _enforce(image.dtype.char in "efd", "image.dtype must be float{16,32,64} for PFM; was %s"%(image.dtype))
@@ -279,58 +330,3 @@ def _write_npy(filespec, image, verbose=False):
     _print(verbose, "Writing NumPy file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, image.dtype))
     np.save(filespec, image)
 
-def _read_raw(filespec, width, height, bpp, header_size=None, verbose=False):
-    # Warning: hardcoded endianness (x86)
-    with open(filespec, "rb") as infile:
-        buf = infile.read()
-        shape = (height, width)
-        maxval = 2 ** bpp - 1
-        wordsize = 2 if bpp > 8 else 1
-        packed = len(buf) < (width * height * wordsize)
-        if not packed:
-            if header_size is None:
-                header_size = len(buf) - (width * height * wordsize)
-            fs, w, h, hdrsz = filespec, width, height, header_size
-            _print(verbose, "Reading raw Bayer file %s (w=%d, h=%d, maxval=%d, header=%d)"%(fs, w, h, maxval, hdrsz))
-            dtype = "<u2" if bpp > 8 else np.uint8
-            pixels = np.frombuffer(buf, dtype, count=width * height, offset=hdrsz)
-            pixels = pixels.reshape(shape).astype(np.uint8 if bpp <= 8 else np.uint16)
-        else:
-            if bpp != 10:
-                raise ImageIOError(f"{bpp}-bit packed RAW reading not implemented yet!")
-            nbytes = width * height * bpp // 8
-            if header_size is None:
-                header_size = len(buf) - nbytes
-            fs, w, h, hdrsz = filespec, width, height, header_size
-            _print(verbose, "Reading packed raw Bayer file %s (w=%d, h=%d, maxval=%d, header=%d)"%(fs, w, h, maxval, hdrsz))
-            data = np.frombuffer(buf, dtype=np.uint8, count=nbytes, offset=hdrsz)
-            pixels = _read_uint10(data, lsb_first=True)
-            pixels = pixels.reshape(height, width)
-        return pixels, maxval
-
-def _read_uint10(data, lsb_first):
-    # 5 bytes contain 4 10-bit pixels (5 * 8 == 4 * 10 == 40)
-    b1, b2, b3, b4, b5 = data.astype(np.uint16).reshape(-1, 5).T
-    if lsb_first:
-        # byte0: a7 a6 a5 a4 a3 a2 a1 a0
-        # byte1: b5 b4 b3 b2 b1 b0 a9 a8
-        # byte2: c3 c2 c1 c0 b9 b8 b7 b6
-        # byte3: d1 d0 c9 c8 c7 c6 c5 c4
-        # byte4: d9 d8 d7 d6 d5 d4 d3 d2
-        o1 = ((b2 % 4) << 8) + b1
-        o2 = ((b3 % 16) << 6) + (b2 >> 2)
-        o3 = ((b4 % 64) << 4) + (b3 >> 4)
-        o4 = (b5 << 2) + (b4 >> 6)
-    else:
-        o1 = (b1 << 2) + (b2 >> 6)
-        o2 = ((b2 % 64) << 4) + (b3 >> 4)
-        o3 = ((b3 % 16) << 6) + (b4 >> 2)
-        o4 = ((b4 % 4) << 8) + b5
-    unpacked = np.c_[o1, o2, o3, o4].ravel()
-    return unpacked
-
-def _write_raw(filespec, image, _maxval, _pack=False, _verbose=False):
-    # Warning: hardcoded endianness (x86)
-    with open(filespec, "wb") as outfile:
-        image = image.copy(order="C")  # ensure x86 byte order
-        outfile.write(image)
