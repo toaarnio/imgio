@@ -49,11 +49,16 @@ RO_FORMATS = RW_FORMATS + [".mipi"]
 
 
 def imread(filespec: str | Path,
-           verbose: bool = False) -> np.ndarray:
+           verbose: bool = False) -> [np.ndarray, float]:
     """
     Reads the given image file from disk and returns it as a NumPy array.
     Grayscale images are returned as 2D arrays of shape H x W, color images
     as 3D arrays of shape H x W x 3.
+
+    :param filespec: file to load
+    :param verbose: True to print file properties on the console
+    :return frame: the image as a 2D/3D array of dtype uint8/16 or float16/32
+    :return maxval: the nominal maximum representable value of the frame
     """
     ImageIOError.error_message_prefix = "Failed to read %s: "%(repr(filespec))
     ispath = lambda p: isinstance(p, (PurePath, str, bytes))
@@ -112,7 +117,7 @@ def rawread(filespec: str | Path,
             stride: int | None = None,
             packing: str | None = None,
             header_size: int | None = None,
-            verbose: bool = False) -> np.ndarray:
+            verbose: bool = False) -> [np.ndarray, int]:
     """
     Reads the given sensor raw file from disk and unpacks it into a uint16 array.
 
@@ -123,6 +128,9 @@ def rawread(filespec: str | Path,
     :param stride: row length in bytes; can be greater than width * bpp / 8
     :param header_size: number of header bytes to skip (not decoded)
     :param packing: bit packing mode; must be unpacked|plain|mipi|None
+    :param verbose: True to print file properties on the console
+    :return frame: the raw frame as a (H, W) array of dtype uint16
+    :return maxval: the nominal maximum representable value of the frame
     """
     _enforce(isinstance(bpp, int) and bpp in [10, 12, 14, 16], "bpp must be in [10, 12, 14, 16]; was %s"%(repr(bpp)))
     _enforce(isinstance(width, int) and width % 2 == 0, "width must be an integer multiple of 2; was %s"%(repr(width)))

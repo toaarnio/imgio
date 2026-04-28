@@ -10,6 +10,7 @@ import imgio
 from imgio import imread, imread_f16, imread_f32, imread_f64, imwrite, rawread, ImageIOError
 from imgio.imgio import freeimage
 
+
 IMAGES_DIR = Path(__file__).parent / "images"
 
 
@@ -377,6 +378,12 @@ class TestImgIo(unittest.TestCase):
             self.assertEqual(result.shape, shape)
             np.testing.assert_allclose(result, pixels)
             os.remove(capsfile)
+
+    def test_members(self):
+        self.assertIsInstance(imgio.RO_FORMATS, list)
+        self.assertIsInstance(imgio.RW_FORMATS, list)
+        self.assertGreaterEqual(len(imgio.RO_FORMATS), 15)
+        self.assertGreaterEqual(len(imgio.RO_FORMATS), len(imgio.RW_FORMATS))
 
     def test_verbose(self):
         print("Testing verbose mode...")
