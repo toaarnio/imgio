@@ -1,8 +1,10 @@
+import importlib
 import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -120,6 +122,15 @@ class TestImgIo(unittest.TestCase):
         self.assertRaisesRegex(ImageIOError, "^Failed to write.*shape", imwrite, "imgio.test.raw", pixels8b, 255)
         self.assertRaisesRegex(ImageIOError, "^Failed to write.*supported", imwrite, "imgio.test.raw", pixels8b, 255, packed=True)
         self.assertRaisesRegex(ImageIOError, "^Failed to write.*verbose", imwrite, "imgio.test.ppm", pixels8b, 255, verbose=0)
+
+    def test_freeimage_disabled_on_macos(self):
+        import imgio.imgio as imgio_module
+
+        with mock.patch("sys.platform", "darwin"):
+            with mock.patch("imageio.plugins.freeimage.download", side_effect=AssertionError("must not be called on macOS")):
+                reloaded = importlib.reload(imgio_module)
+                self.assertFalse(reloaded.freeimage)
+        importlib.reload(imgio_module)
 
     def test_png(self):
         for shape in self.TEST_SHAPES_1 + self.TEST_SHAPES_3:

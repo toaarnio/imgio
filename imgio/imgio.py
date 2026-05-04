@@ -28,13 +28,22 @@ except ModuleNotFoundError:
     print()
     pyexr = None
 
-try:
-    imageio.plugins.freeimage.download()  # required for 16-bit PNG
-    freeimage = True
-except OSError:
-    print("imgio: FreeImage is malfunctioning, using Pillow instead. Some file formats may not work.")
-    print()
-    freeimage = False
+def _init_freeimage():
+    if sys.platform == "darwin":
+        print("imgio: FreeImage disabled on macOS, using Pillow instead. Some file formats may not work.")
+        print()
+        return False
+    try:
+        imageio.plugins.freeimage.download()  # required for 16-bit PNG
+    except OSError:
+        print("imgio: FreeImage is malfunctioning, using Pillow instead. Some file formats may not work.")
+        print()
+        return False
+    else:
+        return True
+
+
+freeimage = _init_freeimage()
 
 
 ######################################################################################
@@ -337,4 +346,3 @@ def _write_npy(filespec, image, verbose=False):
     ch = image.shape[2] if image.ndim == 3 else 1
     _print(verbose, "Writing NumPy file %s (w=%d, h=%d, c=%d, %s)"%(filespec, w, h, ch, image.dtype))
     np.save(filespec, image)
-
