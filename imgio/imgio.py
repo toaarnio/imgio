@@ -69,50 +69,50 @@ def imread(filespec: str | Path,
     :return frame: the image as a 2D/3D array of dtype uint8/16 or float16/32
     :return maxval: the nominal maximum representable value of the frame
     """
-    ImageIOError.error_message_prefix = "Failed to read %s: "%(repr(filespec))
+    prefix = "Failed to read %s: "%(repr(filespec))
     ispath = lambda p: isinstance(p, (PurePath, str, bytes))
-    _enforce(ispath(filespec), "filespec must be a Path or string, was %s (%s)."%(type(filespec), repr(filespec)))
-    _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)))
+    _enforce(ispath(filespec), "filespec must be a Path or string, was %s (%s)."%(type(filespec), repr(filespec)), prefix)
+    _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)), prefix)
     filespec = Path(filespec)
     filename = filespec.name  # path/to/image.pgm => image.pgm
     basename, extension = os.path.splitext(filename)  # image.pgm => ("image", ".pgm")
-    _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
-    _enforce(extension.lower() in RO_FORMATS, "unrecognized file extension `%s`."%(extension))
+    _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename), prefix)
+    _enforce(extension.lower() in RO_FORMATS, "unrecognized file extension `%s`."%(extension), prefix)
     filetype = extension.lower()
     if filetype in [".raw", ".mipi"]:
-        raise ImageIOError("use .rawread() instead of .imread() to load sensor raw files")
+        raise ImageIOError("use .rawread() instead of .imread() to load sensor raw files", prefix)
     if filetype == ".npy":
-        frame = _reraise(lambda: _read_npy(filespec, verbose))
+        frame = _reraise(lambda: _read_npy(filespec, verbose), prefix)
         scale = 1.0
         return frame, scale
     elif filetype == ".pfm":
-        frame, scale = _reraise(lambda: pfm.read(filespec, verbose))
+        frame, scale = _reraise(lambda: pfm.read(filespec, verbose), prefix)
         return frame, scale
     elif filetype == ".exr":
-        _enforce(pyexr is not None, "OpenEXR support not installed")
-        frame = _reraise(lambda: _read_exr(filespec, verbose))
+        _enforce(pyexr is not None, "OpenEXR support not installed", prefix)
+        frame = _reraise(lambda: _read_exr(filespec, verbose), prefix)
         scale = 1.0
         return frame, scale
     elif filetype in [".pnm", ".pgm", ".ppm"]:
-        frame, maxval = _reraise(lambda: pnm.read(filespec, verbose))
+        frame, maxval = _reraise(lambda: pnm.read(filespec, verbose), prefix)
         return frame, maxval
     elif filetype == ".hdr":
-        frame = _reraise(lambda: iio.imread(filespec, plugin="HDR-FI"))
+        frame = _reraise(lambda: iio.imread(filespec, plugin="HDR-FI"), prefix)
         maxval = np.max(frame)
     elif filetype in [".jpg", ".jpeg", ".insp"]:
-        frame = _reraise(lambda: iio.imread(filespec, plugin="JPEG-FI" if freeimage else "pillow"))
+        frame = _reraise(lambda: iio.imread(filespec, plugin="JPEG-FI" if freeimage else "pillow"), prefix)
         maxval = np.iinfo(frame.dtype).max
     elif filetype in [".tiff", ".tif"]:
-        frame = _reraise(lambda: iio.imread(filespec, plugin="TIFF-FI" if freeimage else "pillow"))
+        frame = _reraise(lambda: iio.imread(filespec, plugin="TIFF-FI" if freeimage else "pillow"), prefix)
         maxval = np.iinfo(frame.dtype).max
     elif filetype in [".png"]:
-        frame = _reraise(lambda: iio.imread(filespec, plugin="PNG-FI" if freeimage else "pillow"))
+        frame = _reraise(lambda: iio.imread(filespec, plugin="PNG-FI" if freeimage else "pillow"), prefix)
         maxval = np.iinfo(frame.dtype).max
     elif filetype in [".bmp"]:
-        frame = _reraise(lambda: iio.imread(filespec, plugin="BMP-FI" if freeimage else "pillow"))
+        frame = _reraise(lambda: iio.imread(filespec, plugin="BMP-FI" if freeimage else "pillow"), prefix)
         maxval = np.iinfo(frame.dtype).max
     else:
-        raise ImageIOError("unrecognized file type `%s`."%(filetype))
+        raise ImageIOError("unrecognized file type `%s`."%(filetype), prefix)
     h, w = frame.shape[:2]
     c = frame.shape[2] if frame.ndim > 2 else 1
     _print(verbose, "Reading file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
@@ -141,17 +141,18 @@ def rawread(filespec: str | Path,
     :return frame: the raw frame as a (H, W) array of dtype uint16
     :return maxval: the nominal maximum representable value of the frame
     """
-    _enforce(isinstance(bpp, int) and bpp in [10, 12, 14, 16], "bpp must be in [10, 12, 14, 16]; was %s"%(repr(bpp)))
-    _enforce(isinstance(width, int) and width % 2 == 0, "width must be an integer multiple of 2; was %s"%(repr(width)))
-    _enforce(isinstance(height, int) and height >= 1, "height must be an integer and >= 1; was %s"%(repr(height)))
-    _enforce(stride is None or stride >= width, "stride must be None or >= width; was %s"%(repr(stride)))
-    _enforce(packing == "unpacked" or bpp in [10, 12], f"{bpp}-bit packed RAW reading is not supported")
+    prefix = "Failed to read %s: "%(repr(filespec))
+    _enforce(isinstance(bpp, int) and bpp in [10, 12, 14, 16], "bpp must be in [10, 12, 14, 16]; was %s"%(repr(bpp)), prefix)
+    _enforce(isinstance(width, int) and width % 2 == 0, "width must be an integer multiple of 2; was %s"%(repr(width)), prefix)
+    _enforce(isinstance(height, int) and height >= 1, "height must be an integer and >= 1; was %s"%(repr(height)), prefix)
+    _enforce(stride is None or stride >= width, "stride must be None or >= width; was %s"%(repr(stride)), prefix)
+    _enforce(packing == "unpacked" or bpp in [10, 12], f"{bpp}-bit packed RAW reading is not supported", prefix)
 
-    data = np.fromfile(filespec, dtype=np.uint8)
+    data = _reraise(lambda: np.fromfile(filespec, dtype=np.uint8), prefix)
     header_size = header_size or 0
     is_packed = data.size < width * height * 2 + header_size
 
-    _enforce(not (packing == "unpacked" and is_packed), f"not enough bytes for {width} x {height} pixels as unpacked raw")
+    _enforce(not (packing == "unpacked" and is_packed), f"not enough bytes for {width} x {height} pixels as unpacked raw", prefix)
 
     if packing is None:
         packing = "plain" if is_packed else "unpacked"
@@ -166,13 +167,13 @@ def rawread(filespec: str | Path,
 
     nbytes = stride * height + header_size
     bytedepth = 2 if packing == "unpacked" else bpp / 8
-    _enforce(data.size >= nbytes, f"expected at least {stride} * {height} + {header_size} = {nbytes} bytes, got {data.size}")
+    _enforce(data.size >= nbytes, f"expected at least {stride} * {height} + {header_size} = {nbytes} bytes, got {data.size}", prefix)
 
     data = data[header_size:nbytes]  # trim header & footer bytes
     data = data.reshape(height, stride)
     data = data[:, :int(width * bytedepth)]  # trim right edge padding
     data = data.ravel()
-    frame = _reraise(lambda: raw.decode(data, bpp, packing))
+    frame = _reraise(lambda: raw.decode(data, bpp, packing), prefix)
     frame = frame.reshape(-1, width)  # allow extra rows at bottom
     frame = frame[:height, :width]  # trim bottom edge padding
     maxval = 2 ** bpp - 1
@@ -222,71 +223,70 @@ def imwrite(filespec, image, maxval=255, packed=False, verbose=False):
     with shape H x W x C. Metadata, alpha channels, etc. are not supported.
     """
     ispath = lambda p: isinstance(p, (PurePath, str, bytes))
-    ImageIOError.error_message_prefix = "Failed to write %s: "%(repr(filespec))
-    _enforce(ispath(filespec), "filespec must be a Path or string, was %s (%s)."%(type(filespec), repr(filespec)))
-    _enforce(isinstance(image, np.ndarray), "image must be a NumPy ndarray; was %s."%(type(image)))
-    _enforce(image.dtype.char in "BHefd", "image.dtype must be uint{8,16}, or float{16,32,64}; was %s"%(image.dtype))
-    _enforce(image.size >= 1, "image must have at least one pixel; had none.")
-    _enforce(isinstance(maxval, (float, int)), "maxval must be an integer or a float; was %s."%(repr(maxval)))
-    _enforce(isinstance(maxval, int) or image.dtype.char in "efd", "maxval must be an integer in [1, 65535]; was %s."%(repr(maxval)))
-    _enforce(1 <= maxval <= 65535 or image.dtype.char in "efd", "maxval must be an integer in [1, 65535]; was %s."%(repr(maxval)))
-    _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)))
-    _disallow(image.ndim not in [2, 3], "image.shape must be (m, n) or (m, n, c); was %s."%(str(image.shape)))
-    _disallow(maxval > 255 and image.dtype == np.uint8, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
-    _disallow(maxval <= 255 and image.dtype == np.uint16, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype))
+    prefix = "Failed to write %s: "%(repr(filespec))
+    _enforce(ispath(filespec), "filespec must be a Path or string, was %s (%s)."%(type(filespec), repr(filespec)), prefix)
+    _enforce(isinstance(image, np.ndarray), "image must be a NumPy ndarray; was %s."%(type(image)), prefix)
+    _enforce(image.dtype.char in "BHefd", "image.dtype must be uint{8,16}, or float{16,32,64}; was %s"%(image.dtype), prefix)
+    _enforce(image.size >= 1, "image must have at least one pixel; had none.", prefix)
+    _enforce(isinstance(maxval, (float, int)), "maxval must be an integer or a float; was %s."%(repr(maxval)), prefix)
+    _enforce(isinstance(maxval, int) or image.dtype.char in "efd", "maxval must be an integer in [1, 65535]; was %s."%(repr(maxval)), prefix)
+    _enforce(1 <= maxval <= 65535 or image.dtype.char in "efd", "maxval must be an integer in [1, 65535]; was %s."%(repr(maxval)), prefix)
+    _enforce(isinstance(verbose, bool), "verbose must be True or False, was %s (%s)."%(type(verbose), repr(verbose)), prefix)
+    _disallow(image.ndim not in [2, 3], "image.shape must be (m, n) or (m, n, c); was %s."%(str(image.shape)), prefix)
+    _disallow(maxval > 255 and image.dtype == np.uint8, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype), prefix)
+    _disallow(maxval <= 255 and image.dtype == np.uint16, "maxval (%d) and image.dtype (%s) are inconsistent."%(maxval, image.dtype), prefix)
     filespec = Path(filespec)
     filename = os.path.basename(filespec)  # path/to/image.pgm => image.pgm
     basename, extension = os.path.splitext(filename)  # image.pgm => ("image", ".pgm")
-    _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename))
-    _enforce(extension.lower() in RW_FORMATS, "unrecognized or unsupported file extension `%s`."%(extension))
+    _enforce(len(basename) > 0, "filename `%s` must have at least 1 character + extension."%(filename), prefix)
+    _enforce(extension.lower() in RW_FORMATS, "unrecognized or unsupported file extension `%s`."%(extension), prefix)
     filetype = extension.lower()
     if filetype == ".raw":
-        _enforce(packed is False, "packed Bayer RAW images are not yet supported.")
-        _enforce(image.ndim == 2, "image.shape must be (m, n) for a Bayer RAW; was %s."%(str(image.shape)))
-        _reraise(lambda: raw.write(filespec, image, maxval, packed, verbose))
+        _enforce(packed is False, "packed Bayer RAW images are not yet supported.", prefix)
+        _enforce(image.ndim == 2, "image.shape must be (m, n) for a Bayer RAW; was %s."%(str(image.shape)), prefix)
+        _reraise(lambda: raw.write(filespec, image, maxval, packed, verbose), prefix)
     elif filetype == ".pfm":
-        _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
-        _enforce(image.dtype.char in "efd", "image.dtype must be float{16,32,64} for PFM; was %s"%(image.dtype))
-        _enforce(maxval >= 0.0, "maxval (scale) must be non-negative; was %s."%(repr(maxval)))
-        _reraise(lambda: pfm.write(filespec, image, maxval, little_endian=True, verbose=verbose))
+        _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)), prefix)
+        _enforce(image.dtype.char in "efd", "image.dtype must be float{16,32,64} for PFM; was %s"%(image.dtype), prefix)
+        _enforce(maxval >= 0.0, "maxval (scale) must be non-negative; was %s."%(repr(maxval)), prefix)
+        _reraise(lambda: pfm.write(filespec, image, maxval, little_endian=True, verbose=verbose), prefix)
     elif filetype == ".exr":
-        _enforce(image.dtype.char in "efd", "image.dtype must be float{16,32,64} for EXR; was %s"%(image.dtype))
-        _enforce(pyexr is not None, "OpenEXR support not installed")
-        _reraise(lambda: _write_exr(filespec, image, verbose))
+        _enforce(image.dtype.char in "efd", "image.dtype must be float{16,32,64} for EXR; was %s"%(image.dtype), prefix)
+        _enforce(pyexr is not None, "OpenEXR support not installed", prefix)
+        _reraise(lambda: _write_exr(filespec, image, verbose), prefix)
     elif filetype == ".npy":
-        _reraise(lambda: _write_npy(filespec, image, verbose))
+        _reraise(lambda: _write_npy(filespec, image, verbose), prefix)
     elif filetype == ".hdr":
-        _enforce(image.dtype.char in "f", "image.dtype must be float32 for HDR; was %s"%(image.dtype))
-        _enforce(np.min(image) >= 0.0, "negative colors cannot be stored in HDR format; use EXR/PFM/NPY instead")
-        _reraise(lambda: iio.imwrite(filespec, image, plugin="HDR-FI"))
+        _enforce(image.dtype.char in "f", "image.dtype must be float32 for HDR; was %s"%(image.dtype), prefix)
+        _enforce(np.min(image) >= 0.0, "negative colors cannot be stored in HDR format; use EXR/PFM/NPY instead", prefix)
+        _reraise(lambda: iio.imwrite(filespec, image, plugin="HDR-FI"), prefix)
     elif filetype in [".pnm", ".pgm", ".ppm"]:
-        _reraise(lambda: pnm.write(filespec, image, maxval, verbose))
+        _reraise(lambda: pnm.write(filespec, image, maxval, verbose), prefix)
     elif filetype in [".png", ".tif", ".tiff", ".jpg", ".jpeg", ".insp", ".bmp"]:
-        _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)))
-        _disallow(maxval not in [255, 65535], "maxval must be 255 or 65535 for JPEG/PNG/BMP/TIFF; was %d."%(maxval))
+        _disallow(image.ndim == 3 and image.shape[2] != 3, "image.shape must be (m, n) or (m, n, 3); was %s."%(str(image.shape)), prefix)
+        _disallow(maxval not in [255, 65535], "maxval must be 255 or 65535 for JPEG/PNG/BMP/TIFF; was %d."%(maxval), prefix)
         if filetype in [".jpg", ".jpeg", ".insp"]:
-            _disallow(maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval))
-            _reraise(lambda: iio.imwrite(filespec, image, plugin="pillow", extension=".jpg", quality=95))
+            _disallow(maxval != 255, "maxval must be 255 for a JPEG; was %d."%(maxval), prefix)
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="pillow", extension=".jpg", quality=95), prefix)
         if filetype in [".tiff", ".tif"]:
-            _reraise(lambda: iio.imwrite(filespec, image, plugin="TIFF-FI" if freeimage else "pillow"))
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="TIFF-FI" if freeimage else "pillow"), prefix)
         if filetype in [".png"]:
-            _reraise(lambda: iio.imwrite(filespec, image, plugin="PNG-FI" if freeimage else "pillow", compression=1))
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="PNG-FI" if freeimage else "pillow", compression=1), prefix)
         if filetype in [".bmp"]:
-            _reraise(lambda: iio.imwrite(filespec, image, plugin="BMP-FI" if freeimage else "pillow"))
+            _reraise(lambda: iio.imwrite(filespec, image, plugin="BMP-FI" if freeimage else "pillow"), prefix)
         h, w = image.shape[:2]
         c = image.shape[2] if image.ndim > 2 else 1
         _print(verbose, "Writing file %s (w=%d, h=%d, c=%d, maxval=%d)"%(filespec, w, h, c, maxval))
     else:
-        raise ImageIOError("unrecognized file type `%s`."%(filetype))
+        raise ImageIOError("unrecognized file type `%s`."%(filetype), prefix)
 
 
 class ImageIOError(RuntimeError):
     """
     A custom exception raised in all error conditions.
     """
-    error_message_prefix = ""
-    def __init__(self, msg):
-        RuntimeError.__init__(self, "%s%s"%(self.error_message_prefix, msg))
+    def __init__(self, msg, prefix=""):
+        RuntimeError.__init__(self, "%s%s"%(prefix, msg))
 
 
 ######################################################################################
@@ -296,19 +296,19 @@ class ImageIOError(RuntimeError):
 ######################################################################################
 
 
-def _enforce(expression, error_message_if_false):
+def _enforce(expression, error_message_if_false, prefix=""):
     if not expression:
-        raise ImageIOError("%s"%(error_message_if_false))
+        raise ImageIOError("%s"%(error_message_if_false), prefix)
 
-def _disallow(expression, error_message_if_true):
+def _disallow(expression, error_message_if_true, prefix=""):
     if expression:
-        raise ImageIOError("%s"%(error_message_if_true))
+        raise ImageIOError("%s"%(error_message_if_true), prefix)
 
-def _reraise(func):
+def _reraise(func, prefix=""):
     try:
         return func()
     except Exception as e:
-        raise ImageIOError("%s"%(repr(sys.exc_info()[1]))) from e
+        raise ImageIOError("%s"%(repr(sys.exc_info()[1])), prefix) from e
 
 def _print(verbose, *args, **kwargs):
     if verbose:
