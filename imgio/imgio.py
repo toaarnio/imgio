@@ -145,7 +145,10 @@ def rawread(filespec: str | Path,
     _enforce(isinstance(bpp, int) and bpp in [10, 12, 14, 16], "bpp must be in [10, 12, 14, 16]; was %s"%(repr(bpp)), prefix)
     _enforce(isinstance(width, int) and width % 2 == 0, "width must be an integer multiple of 2; was %s"%(repr(width)), prefix)
     _enforce(isinstance(height, int) and height >= 1, "height must be an integer and >= 1; was %s"%(repr(height)), prefix)
+    _enforce(isinstance(stride, int | None), "stride must be None or an integer; was %s"%(repr(stride)), prefix)
+    _enforce(isinstance(header_size, int | None), "header_size must be None or an integer; was %s"%(repr(header_size)), prefix)
     _enforce(stride is None or stride >= width, "stride must be None or >= width; was %s"%(repr(stride)), prefix)
+    _enforce(header_size is None or header_size >= 0, "header_size must be None or >= 0; was %s"%(repr(header_size)), prefix)
     _enforce(packing == "unpacked" or bpp in [10, 12], f"{bpp}-bit packed RAW reading is not supported", prefix)
 
     data = _reraise(lambda: np.fromfile(filespec, dtype=np.uint8), prefix)

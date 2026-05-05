@@ -122,6 +122,14 @@ class TestImgIo(unittest.TestCase):
         self.assertRaisesRegex(ImageIOError, "^Failed to write.*shape", imwrite, "imgio.test.raw", pixels8b, 255)
         self.assertRaisesRegex(ImageIOError, "^Failed to write.*supported", imwrite, "imgio.test.raw", pixels8b, 255, packed=True)
         self.assertRaisesRegex(ImageIOError, "^Failed to write.*verbose", imwrite, "imgio.test.ppm", pixels8b, 255, verbose=0)
+        self.assertRaisesRegex(ImageIOError, "^Failed to read.*stride must be None or an integer",
+                               rawread, "imgio.test.raw", width=8, height=4, bpp=12, stride=8.5)
+        self.assertRaisesRegex(ImageIOError, "^Failed to read.*stride must be None or >= width",
+                               rawread, "imgio.test.raw", width=8, height=4, bpp=12, stride=6)
+        self.assertRaisesRegex(ImageIOError, "^Failed to read.*header_size must be None or an integer",
+                               rawread, "imgio.test.raw", width=8, height=4, bpp=12, header_size=1.5)
+        self.assertRaisesRegex(ImageIOError, "^Failed to read.*header_size must be None or >= 0",
+                               rawread, "imgio.test.raw", width=8, height=4, bpp=12, header_size=-1)
 
     def test_freeimage_disabled_on_macos(self):
         import imgio.imgio as imgio_module
